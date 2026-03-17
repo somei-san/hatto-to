@@ -296,11 +296,22 @@
 
   // ── Load Note Data ────────────────────────────────
   async function loadNote() {
-    const note = await invoke('get_note', { id: noteId });
+    const [note, settings] = await Promise.all([
+      invoke('get_note', { id: noteId }),
+      invoke('get_settings'),
+    ]);
     if (!note) return;
 
     editor.value = note.content;
     applyColor(note.color);
+
+    if (settings) {
+      const fs = settings.font_size;
+      editor.style.fontSize = `${fs}px`;
+      editor.style.lineHeight = `${fs * 2}px`;
+      document.querySelector('.lines').style.backgroundImage =
+        `repeating-linear-gradient(to bottom, transparent, transparent ${fs * 2 - 1}px, var(--text-muted) ${fs * 2 - 1}px, var(--text-muted) ${fs * 2}px)`;
+    }
   }
 
   // ── Auto-Save Content ─────────────────────────────

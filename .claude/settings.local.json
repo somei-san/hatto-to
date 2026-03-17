@@ -3,7 +3,10 @@
     "allow": [
       "WebSearch",
       "Bash(npm install:*)",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo build:*)",
+      "Bash(wait)"
     ]
   }
 }

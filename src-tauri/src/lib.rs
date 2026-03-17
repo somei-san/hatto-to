@@ -3,7 +3,6 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{
-    image::Image,
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder,
@@ -24,11 +23,11 @@ pub struct Note {
 }
 
 impl Note {
-    fn new() -> Self {
+    fn new(color: &str) -> Self {
         Self {
             id: Uuid::new_v4().to_string(),
             content: String::new(),
-            color: "yellow".into(),
+            color: color.into(),
             x: 120.0,
             y: 120.0,
             width: 280.0,
@@ -37,8 +36,24 @@ impl Note {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Settings {
+    pub default_color: String,
+    pub font_size: u32,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            default_color: "yellow".into(),
+            font_size: 14,
+        }
+    }
+}
+
 pub struct AppState {
     notes: Mutex<Vec<Note>>,
+    settings: Mutex<Settings>,
 }
 
 // ── Persistence ─────────────────────────────────────────────
@@ -53,6 +68,10 @@ fn data_dir() -> PathBuf {
 
 fn data_file() -> PathBuf {
     data_dir().join("notes.json")
+}
+
+fn settings_file() -> PathBuf {
+    data_dir().join("settings.json")
 }
 
 fn load_notes() -> Vec<Note> {
@@ -70,6 +89,25 @@ fn load_notes() -> Vec<Note> {
 fn save_notes(notes: &[Note]) {
     let path = data_file();
     if let Ok(json) = serde_json::to_string_pretty(notes) {
+        let _ = fs::write(path, json);
+    }
+}
+
+fn load_settings() -> Settings {
+    let path = settings_file();
+    if path.exists() {
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        Settings::default()
+    }
+}
+
+fn save_settings(settings: &Settings) {
+    let path = settings_file();
+    if let Ok(json) = serde_json::to_string_pretty(settings) {
         let _ = fs::write(path, json);
     }
 }
@@ -125,8 +163,30 @@ fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
 }
 
 #[tauri::command]
+fn get_settings(state: State<AppState>) -> Settings {
+    state.settings.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn update_settings(default_color: String, font_size: u32, state: State<AppState>) {
+    let mut settings = state.settings.lock().unwrap();
+    settings.default_color = default_color;
+    settings.font_size = font_size;
+    save_settings(&settings);
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle) {
+    open_settings_window(&app);
+}
+
+#[tauri::command]
 fn create_note(app: AppHandle, state: State<AppState>) -> Note {
-    let note = Note::new();
+    let default_color = {
+        let settings = state.settings.lock().unwrap();
+        settings.default_color.clone()
+    };
+    let note = Note::new(&default_color);
     {
         let mut notes = state.notes.lock().unwrap();
         // Offset new note position so it doesn't stack exactly
@@ -159,16 +219,31 @@ fn open_note_window(app: &AppHandle, note: &Note) {
         .build();
 }
 
+// ── Window Management (Settings) ────────────────────────────
+
+fn open_settings_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("settings") {
+        let _ = win.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
+        .title("Hatto-to — 設定 / ヘルプ")
+        .inner_size(420.0, 520.0)
+        .min_inner_size(380.0, 460.0)
+        .resizable(true)
+        .visible(true)
+        .build();
+}
+
 // ── System Tray ─────────────────────────────────────────────
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let new_note = MenuItem::with_id(app, "new_note", "New Note", true, Some("CmdOrCtrl+N"))?;
+    let settings = MenuItem::with_id(app, "settings", "Settings / Help", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
-    let menu = Menu::with_items(app, &[&new_note, &quit])?;
+    let menu = Menu::with_items(app, &[&new_note, &settings, &quit])?;
 
-    // Use a simple 1x1 pixel icon as fallback (you can replace with a real icon)
-    let icon = Image::from_bytes(include_bytes!("../icons/tray.png"))
-        .unwrap_or_else(|_| Image::new(&[255, 255, 0, 255], 1, 1));
+    let icon = tauri::include_image!("icons/tray.png");
 
     TrayIconBuilder::new()
         .icon(icon)
@@ -178,7 +253,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "new_note" => {
                 let state: State<AppState> = app.state();
-                let note = Note::new();
+                let default_color = state.settings.lock().unwrap().default_color.clone();
+                let note = Note::new(&default_color);
                 let mut notes = state.notes.lock().unwrap();
                 let offset = (notes.len() as f64) * 30.0;
                 let mut n = note;
@@ -187,6 +263,9 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 open_note_window(app, &n);
                 notes.push(n);
                 save_notes(&notes);
+            }
+            "settings" => {
+                open_settings_window(app);
             }
             "quit" => {
                 app.exit(0);
@@ -202,8 +281,10 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
 pub fn run() {
     let notes = load_notes();
+    let settings = load_settings();
     let state = AppState {
         notes: Mutex::new(notes),
+        settings: Mutex::new(settings),
     };
 
     tauri::Builder::default()
@@ -216,6 +297,9 @@ pub fn run() {
             update_note_geometry,
             delete_note,
             create_note,
+            get_settings,
+            update_settings,
+            open_settings,
         ])
         .setup(|app| {
             // Set up system tray
@@ -228,7 +312,12 @@ pub fn run() {
             if notes.is_empty() {
                 // Create a default note on first launch
                 drop(notes);
-                let note = Note::new();
+                let default_color = {
+                    let state: State<AppState> = app.state();
+                    let color = state.settings.lock().unwrap().default_color.clone();
+                    color
+                };
+                let note = Note::new(&default_color);
                 open_note_window(app.handle(), &note);
                 let state: State<AppState> = app.state();
                 let mut notes = state.notes.lock().unwrap();

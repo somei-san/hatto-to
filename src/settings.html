@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>設定 / ヘルプ — Hatto-to</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --yellow-bar: #F9E97A;
+    --blue-bar:   #7FB3E0;
+    --green-bar:  #8CC98F;
+    --pink-bar:   #E88FAB;
+    --purple-bar: #C48DD0;
+    --gray-bar:   #B8B8B8;
+    --accent: #0066CC;
+    --border: #E0E0E0;
+    --text: #1A1A1A;
+    --text-muted: #666;
+    --bg: #F5F5F7;
+    --card: #FFFFFF;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --border: #333;
+      --text: #E8E8E8;
+      --text-muted: #999;
+      --bg: #1C1C1E;
+      --card: #2C2C2E;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Tab Bar ──────────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+  }
+
+  .tab {
+    padding: 12px 16px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 13px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ── Content ──────────────────────────────────────── */
+  .panel { display: none; padding: 20px; }
+  .panel.active { display: block; }
+
+  /* ── Section ──────────────────────────────────────── */
+  .section {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── Color Picker ─────────────────────────────────── */
+  .color-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .color-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+    outline: none;
+  }
+  .color-dot:hover { transform: scale(1.1); }
+  .color-dot.active { border-color: rgba(0,0,0,0.5); }
+  .color-dot[data-color="yellow"] { background: var(--yellow-bar); }
+  .color-dot[data-color="blue"]   { background: var(--blue-bar); }
+  .color-dot[data-color="green"]  { background: var(--green-bar); }
+  .color-dot[data-color="pink"]   { background: var(--pink-bar); }
+  .color-dot[data-color="purple"] { background: var(--purple-bar); }
+  .color-dot[data-color="gray"]   { background: var(--gray-bar); }
+
+  /* ── Font Size Selector ───────────────────────────── */
+  .font-size-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .size-btn {
+    flex: 1;
+    padding: 8px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+
+  .size-btn:hover { border-color: var(--accent); }
+
+  .size-btn.active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  .size-label {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* ── Save Button ──────────────────────────────────── */
+  .save-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 0.15s;
+    margin-top: 4px;
+  }
+  .save-btn:hover { opacity: 0.85; }
+  .save-btn:active { opacity: 0.7; }
+
+  .save-msg {
+    text-align: center;
+    color: #34C759;
+    font-size: 12px;
+    margin-top: 8px;
+    min-height: 18px;
+    transition: opacity 0.3s;
+  }
+
+  /* ── Help: Shortcuts ──────────────────────────────── */
+  .shortcut-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .shortcut-table tr + tr td {
+    border-top: 1px solid var(--border);
+  }
+
+  .shortcut-table td {
+    padding: 8px 4px;
+    font-size: 13px;
+    vertical-align: middle;
+  }
+
+  .shortcut-table td:first-child {
+    color: var(--text-muted);
+    width: 55%;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: -apple-system, monospace;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+  }
+
+  /* ── Help: Usage ──────────────────────────────────── */
+  .usage-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .usage-list li {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  .usage-list li .icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    width: 22px;
+  }
+
+  /* ── Version ──────────────────────────────────────── */
+  .version-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .version-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .version-badge {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg);
+    padding: 3px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="tab-bar">
+  <div class="tab active" data-tab="settings">設定</div>
+  <div class="tab" data-tab="help">ヘルプ</div>
+</div>
+
+<!-- ── Settings Panel ─────────────────────────────── -->
+<div class="panel active" id="panel-settings">
+
+  <div class="section">
+    <div class="section-title">新規ノートのデフォルトカラー</div>
+    <div class="color-row" id="color-picker">
+      <div class="color-dot active" data-color="yellow" tabindex="0" title="イエロー"></div>
+      <div class="color-dot" data-color="blue"   tabindex="0" title="ブルー"></div>
+      <div class="color-dot" data-color="green"  tabindex="0" title="グリーン"></div>
+      <div class="color-dot" data-color="pink"   tabindex="0" title="ピンク"></div>
+      <div class="color-dot" data-color="purple" tabindex="0" title="パープル"></div>
+      <div class="color-dot" data-color="gray"   tabindex="0" title="グレー"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">文字サイズ</div>
+    <div class="font-size-row" id="font-size-picker">
+      <button class="size-btn" data-size="12">
+        <span style="font-size:12px">あ</span>
+        <span class="size-label">小 (12px)</span>
+      </button>
+      <button class="size-btn active" data-size="14">
+        <span style="font-size:14px">あ</span>
+        <span class="size-label">中 (14px)</span>
+      </button>
+      <button class="size-btn" data-size="18">
+        <span style="font-size:18px">あ</span>
+        <span class="size-label">大 (18px)</span>
+      </button>
+    </div>
+  </div>
+
+  <button class="save-btn" id="save-btn">保存</button>
+  <div class="save-msg" id="save-msg"></div>
+</div>
+
+<!-- ── Help Panel ─────────────────────────────────── -->
+<div class="panel" id="panel-help">
+
+  <div class="section">
+    <div class="section-title">使い方</div>
+    <ul class="usage-list">
+      <li><span class="icon">📝</span><span>付箋をクリックして文字を入力。変更は自動で保存されます。</span></li>
+      <li><span class="icon">🎨</span><span>タイトルバー右の ● ボタンで付箋の色を変更できます。</span></li>
+      <li><span class="icon">➕</span><span>タイトルバー右の ＋ ボタン、またはトレイメニューから新しい付箋を作成できます。</span></li>
+      <li><span class="icon">✕</span><span>タイトルバー左の ✕ ボタンで付箋を削除します（元に戻せません）。</span></li>
+      <li><span class="icon">↔️</span><span>タイトルバーをドラッグして移動、右下角をドラッグしてサイズ変更できます。</span></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">ショートカット</div>
+    <table class="shortcut-table">
+      <tr><td>新規ノート</td><td><kbd>⌘</kbd> <kbd>N</kbd></td></tr>
+      <tr><td>アプリを終了</td><td><kbd>⌘</kbd> <kbd>Q</kbd></td></tr>
+      <tr><td>ノートを削除</td><td>✕ ボタンをクリック</td></tr>
+      <tr><td>設定/ヘルプを開く</td><td>トレイ → Settings / Help</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">バージョン情報</div>
+    <div class="version-row">
+      <span class="version-name">Hatto-to（貼っと）</span>
+      <span class="version-badge">v0.1.0</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+
+  let currentColor = 'yellow';
+  let currentSize  = 14;
+
+  // ── Tabs ────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  // ── Color Picker ────────────────────────────────────
+  document.querySelectorAll('#color-picker .color-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      document.querySelectorAll('#color-picker .color-dot').forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+      currentColor = dot.dataset.color;
+    });
+  });
+
+  // ── Font Size Picker ────────────────────────────────
+  document.querySelectorAll('#font-size-picker .size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#font-size-picker .size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSize = parseInt(btn.dataset.size, 10);
+    });
+  });
+
+  // ── Save ─────────────────────────────────────────────
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    await invoke('update_settings', {
+      defaultColor: currentColor,
+      fontSize: currentSize,
+    });
+    const msg = document.getElementById('save-msg');
+    msg.textContent = '保存しました';
+    setTimeout(() => { msg.textContent = ''; }, 2000);
+  });
+
+  // ── Load current settings ────────────────────────────
+  async function init() {
+    const s = await invoke('get_settings');
+    currentColor = s.default_color;
+    currentSize  = s.font_size;
+
+    document.querySelectorAll('#color-picker .color-dot').forEach(d => {
+      d.classList.toggle('active', d.dataset.color === currentColor);
+    });
+
+    document.querySelectorAll('#font-size-picker .size-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.size, 10) === currentSize);
+    });
+  }
+
+  init();
+</script>
+</body>
+</html>

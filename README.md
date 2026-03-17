@@ -17,8 +17,7 @@
 ### Homebrew (推奨)
 
 ```bash
-brew tap YOUR_USER/hatto-to
-brew install --cask hatto-to
+brew install --cask somei-san/tap/hatto-to
 ```
 
 ### ソースからビルド

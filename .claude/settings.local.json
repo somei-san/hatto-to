@@ -6,7 +6,8 @@
       "Bash(npx playwright:*)",
       "Bash(cargo check:*)",
       "Bash(cargo build:*)",
-      "Bash(wait)"
+      "Bash(wait)",
+      "Bash(cargo clippy:*)"
     ]
   }
 }

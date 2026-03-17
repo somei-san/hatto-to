@@ -198,7 +198,7 @@ fn create_note(app: AppHandle, state: State<AppState>) -> Note {
         open_note_window(&app, &n);
         notes.push(n.clone());
         save_notes(&notes);
-        return n;
+        n
     }
 }
 

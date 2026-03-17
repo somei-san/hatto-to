@@ -32,9 +32,11 @@ async function injectNoteMock(
       core: {
         invoke: async (cmd: string) => {
           switch (cmd) {
-            case "get_note":       return data.note;
-            case "get_settings":   return data.settings;
-            default:               return null;
+            case "get_note":              return data.note;
+            case "get_settings":          return data.settings;
+            case "update_note_content":   return null;
+            case "update_settings":       return null;
+            default:                      return null;
           }
         },
       },

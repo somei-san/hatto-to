@@ -17,6 +17,14 @@ test("note with text content", async ({ openNote }) => {
   await expect(page).toHaveScreenshot("note-with-text.png");
 });
 
+test("note — markdown preview", async ({ openNote }) => {
+  const page = await openNote({
+    color: "yellow",
+    content: "# タイトル\n## サブ見出し\n\n- りんご\n- みかん\n\n- [ ] 未完了タスク\n- [x] 完了タスク",
+  });
+  await expect(page).toHaveScreenshot("note-markdown.png");
+});
+
 test("color picker open", async ({ notePage }) => {
   await notePage.click("#btn-color");
   await notePage.waitForSelector(".color-picker.open");

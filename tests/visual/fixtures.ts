@@ -6,11 +6,16 @@ const DEFAULT_SETTINGS = {
   default_color: "yellow",
   font_size: 14,
   zoom: 100,
+  opacity: 100,
 };
 
 // ── Note mock ──────────────────────────────────────────────
 
-async function injectNoteMock(page: Page, noteOverrides: Record<string, unknown> = {}) {
+async function injectNoteMock(
+  page: Page,
+  noteOverrides: Record<string, unknown> = {},
+  settingsOverrides: Record<string, unknown> = {},
+) {
   const note = {
     id: "test-note-id",
     content: "",
@@ -41,7 +46,7 @@ async function injectNoteMock(page: Page, noteOverrides: Record<string, unknown>
         }),
       },
     };
-  }, { note, settings: DEFAULT_SETTINGS });
+  }, { note, settings: { ...DEFAULT_SETTINGS, ...settingsOverrides } });
 }
 
 // ── Settings mock ──────────────────────────────────────────
@@ -75,7 +80,7 @@ async function injectSettingsMock(
 
 type Fixtures = {
   notePage: Page;
-  openNote: (overrides?: Record<string, unknown>) => Promise<Page>;
+  openNote: (overrides?: Record<string, unknown>, settings?: Record<string, unknown>) => Promise<Page>;
   settingsPage: Page;
   openSettings: (overrides?: Record<string, unknown>, autostart?: boolean) => Promise<Page>;
 };
@@ -92,10 +97,10 @@ export const test = base.extend<Fixtures>({
   // note.html — custom note data, own browser context
   openNote: async ({ browser }, use) => {
     const pages: Page[] = [];
-    const open = async (overrides: Record<string, unknown> = {}) => {
+    const open = async (overrides: Record<string, unknown> = {}, settings: Record<string, unknown> = {}) => {
       const ctx = await browser.newContext({ viewport: { width: 300, height: 350 } });
       const page = await ctx.newPage();
-      await injectNoteMock(page, overrides);
+      await injectNoteMock(page, overrides, settings);
       await page.goto("/note.html?id=test-note-id");
       await page.waitForLoadState("networkidle");
       pages.push(page);

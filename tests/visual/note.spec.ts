@@ -22,3 +22,8 @@ test("color picker open", async ({ notePage }) => {
   await notePage.waitForSelector(".color-picker.open");
   await expect(notePage).toHaveScreenshot("color-picker-open.png");
 });
+
+test("note — opacity 50%", async ({ openNote }) => {
+  const page = await openNote({}, { opacity: 50 });
+  await expect(page).toHaveScreenshot("note-opacity-50.png");
+});

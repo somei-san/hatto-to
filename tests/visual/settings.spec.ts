@@ -21,6 +21,11 @@ test("settings tab — zoom 150%", async ({ openSettings }) => {
   await expect(page).toHaveScreenshot("settings-zoom-150.png");
 });
 
+test("settings tab — opacity 50%", async ({ openSettings }) => {
+  const page = await openSettings({ opacity: 50 });
+  await expect(page).toHaveScreenshot("settings-opacity-50.png");
+});
+
 test("settings tab — autostart on", async ({ openSettings }) => {
   const page = await openSettings({}, true);
   await expect(page).toHaveScreenshot("settings-autostart-on.png");

@@ -312,6 +312,7 @@
       document.querySelector('.lines').style.backgroundImage =
         `repeating-linear-gradient(to bottom, transparent, transparent ${fs * 2 - 1}px, var(--text-muted) ${fs * 2 - 1}px, var(--text-muted) ${fs * 2}px)`;
       applyZoom(settings.zoom);
+      noteEl.style.opacity = (settings.opacity ?? 100) / 100;
     }
   }
 

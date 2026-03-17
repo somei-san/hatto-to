@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
     AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder,
 };
@@ -242,6 +242,55 @@ fn open_settings_window(app: &AppHandle) {
         .build();
 }
 
+// ── App Menu ────────────────────────────────────────────────
+
+fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
+    let settings_item = MenuItem::with_id(app, "open_settings", "Settings...", true, Some("CmdOrCtrl+,"))?;
+
+    let app_submenu = Submenu::with_items(
+        app,
+        "Hatto-to",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, None, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &settings_item,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, None)?,
+            &PredefinedMenuItem::hide_others(app, None)?,
+            &PredefinedMenuItem::show_all(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::quit(app, None)?,
+        ],
+    )?;
+
+    let edit_submenu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+
+    let menu = Menu::with_items(app, &[&app_submenu, &edit_submenu])?;
+    app.set_menu(menu)?;
+
+    app.on_menu_event(|app, event| {
+        if event.id() == "open_settings" {
+            open_settings_window(app);
+        }
+    });
+
+    Ok(())
+}
+
 // ── System Tray ─────────────────────────────────────────────
 
 fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -310,7 +359,8 @@ pub fn run() {
             open_settings,
         ])
         .setup(|app| {
-            // Set up system tray
+            // Set up app menu and system tray
+            let _ = setup_app_menu(app.handle());
             let _ = setup_tray(app.handle());
 
             // Restore saved notes

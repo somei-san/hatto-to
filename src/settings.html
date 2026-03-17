@@ -240,6 +240,57 @@
     font-size: 14px;
   }
 
+  /* ── Toggle Switch ────────────────────────────────── */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .toggle-label {
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+
+  .toggle input { display: none; }
+
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle input:checked + .toggle-track {
+    background: #34C759;
+  }
+
+  .toggle-track::after {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    top: 2px;
+    left: 2px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    transition: transform 0.2s;
+  }
+
+  .toggle input:checked + .toggle-track::after {
+    transform: translateX(18px);
+  }
+
   .version-badge {
     font-size: 11px;
     color: var(--text-muted);
@@ -287,6 +338,17 @@
         <span style="font-size:18px">あ</span>
         <span class="size-label">大 (18px)</span>
       </button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">システム</div>
+    <div class="toggle-row">
+      <span class="toggle-label">ログイン時に自動起動</span>
+      <label class="toggle">
+        <input type="checkbox" id="autostart-toggle" />
+        <div class="toggle-track"></div>
+      </label>
     </div>
   </div>
 
@@ -373,9 +435,23 @@
     setTimeout(() => { msg.textContent = ''; }, 2000);
   });
 
+  // ── Autostart Toggle ─────────────────────────────────
+  const autostartToggle = document.getElementById('autostart-toggle');
+
+  autostartToggle.addEventListener('change', async () => {
+    if (autostartToggle.checked) {
+      await invoke('plugin:autostart|enable');
+    } else {
+      await invoke('plugin:autostart|disable');
+    }
+  });
+
   // ── Load current settings ────────────────────────────
   async function init() {
-    const s = await invoke('get_settings');
+    const [s, autostartEnabled] = await Promise.all([
+      invoke('get_settings'),
+      invoke('plugin:autostart|is_enabled'),
+    ]);
     currentColor = s.default_color;
     currentSize  = s.font_size;
 
@@ -386,6 +462,8 @@
     document.querySelectorAll('#font-size-picker .size-btn').forEach(b => {
       b.classList.toggle('active', parseInt(b.dataset.size, 10) === currentSize);
     });
+
+    autostartToggle.checked = !!autostartEnabled;
   }
 
   init();

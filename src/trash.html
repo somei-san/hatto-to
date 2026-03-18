@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ゴミ箱 — Hatto-to</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --yellow:     #FFF9C4;
+    --yellow-bar: #F9E97A;
+    --blue:       #BBDEFB;
+    --blue-bar:   #7FB3E0;
+    --green:      #C8E6C9;
+    --green-bar:  #8CC98F;
+    --pink:       #F8BBD0;
+    --pink-bar:   #E88FAB;
+    --purple:     #E1BEE7;
+    --purple-bar: #C48DD0;
+    --gray:       #E0E0E0;
+    --gray-bar:   #B8B8B8;
+    --accent: #0066CC;
+    --border: #E0E0E0;
+    --text: #1A1A1A;
+    --text-muted: #666;
+    --bg: #F5F5F7;
+    --card: #FFFFFF;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --border: #333;
+      --text: #E8E8E8;
+      --text-muted: #999;
+      --bg: #1C1C1E;
+      --card: #2C2C2E;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header h1 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .btn-empty {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-empty:hover {
+    background: #FF3B30;
+    color: white;
+    border-color: #FF3B30;
+  }
+
+  .list {
+    padding: 8px 12px;
+    overflow-y: auto;
+    height: calc(100vh - 56px);
+  }
+
+  .empty-msg {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px 0;
+    font-size: 14px;
+  }
+
+  .item {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    transition: box-shadow 0.15s;
+  }
+  .item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .item-color {
+    width: 6px;
+    min-height: 100%;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .item-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .item-preview {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 60px;
+    overflow: hidden;
+  }
+
+  .item-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .btn-restore {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+  .btn-restore:hover {
+    opacity: 0.85;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>ゴミ箱</h1>
+    <button class="btn-empty" id="btn-empty">すべて削除</button>
+  </div>
+  <div class="list" id="list"></div>
+
+<script>
+  const { invoke } = window.__TAURI__.core;
+  const listEl = document.getElementById('list');
+
+  function colorVar(color) {
+    const map = {
+      yellow: '#F9E97A', blue: '#7FB3E0', green: '#8CC98F',
+      pink: '#E88FAB', purple: '#C48DD0', gray: '#B8B8B8',
+    };
+    return map[color] || map.yellow;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  async function render() {
+    const items = await invoke('get_trash');
+    if (items.length === 0) {
+      listEl.innerHTML = '<div class="empty-msg">ゴミ箱は空です</div>';
+      return;
+    }
+    // Show newest first
+    listEl.innerHTML = items.slice().reverse().map(note => {
+      const preview = note.content.slice(0, 120) || '(空の付箋)';
+      return `<div class="item">
+        <div class="item-color" style="background:${colorVar(note.color)}"></div>
+        <div class="item-body">
+          <div class="item-preview">${escapeHtml(preview)}</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-restore" data-id="${note.id}">復元</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  listEl.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.btn-restore');
+    if (!btn) return;
+    await invoke('restore_note', { id: btn.dataset.id });
+    render();
+  });
+
+  document.getElementById('btn-empty').addEventListener('click', async () => {
+    await invoke('empty_trash');
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

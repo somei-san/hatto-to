@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{IconMenuItem, Menu, MenuItem, NativeIcon, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder,
 };
@@ -63,9 +63,12 @@ impl Default for Settings {
     }
 }
 
+const TRASH_MAX: usize = 20;
+
 pub struct AppState {
     notes: Mutex<Vec<Note>>,
     settings: Mutex<Settings>,
+    trash: Mutex<Vec<Note>>,
 }
 
 // ── Persistence ─────────────────────────────────────────────
@@ -120,6 +123,29 @@ fn load_settings() -> Settings {
 fn save_settings(settings: &Settings) {
     let path = settings_file();
     if let Ok(json) = serde_json::to_string_pretty(settings) {
+        let _ = fs::write(path, json);
+    }
+}
+
+fn trash_file() -> PathBuf {
+    data_dir().join("trash.json")
+}
+
+fn load_trash() -> Vec<Note> {
+    let path = trash_file();
+    if path.exists() {
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        vec![]
+    }
+}
+
+fn save_trash(trash: &[Note]) {
+    let path = trash_file();
+    if let Ok(json) = serde_json::to_string_pretty(trash) {
         let _ = fs::write(path, json);
     }
 }
@@ -182,12 +208,56 @@ fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) {
 fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
     {
         let mut notes = state.notes.lock().unwrap();
-        notes.retain(|n| n.id != id);
-        save_notes(&notes);
+        if let Some(pos) = notes.iter().position(|n| n.id == id) {
+            let note = notes.remove(pos);
+            save_notes(&notes);
+            let mut trash = state.trash.lock().unwrap();
+            trash.push(note);
+            let overflow = trash.len().saturating_sub(TRASH_MAX);
+            if overflow > 0 {
+                trash.drain(0..overflow);
+            }
+            save_trash(&trash);
+        }
     }
     if let Some(win) = app.get_webview_window(&format!("note-{}", id)) {
         let _ = win.close();
     }
+}
+
+#[tauri::command]
+fn get_trash(state: State<AppState>) -> Vec<Note> {
+    state.trash.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn restore_note(id: String, app: AppHandle, state: State<AppState>) -> Option<Note> {
+    let note = {
+        let mut trash = state.trash.lock().unwrap();
+        if let Some(pos) = trash.iter().position(|n| n.id == id) {
+            let note = trash.remove(pos);
+            save_trash(&trash);
+            Some(note)
+        } else {
+            None
+        }
+    };
+    if let Some(note) = note {
+        open_note_window(&app, &note);
+        let mut notes = state.notes.lock().unwrap();
+        notes.push(note.clone());
+        save_notes(&notes);
+        Some(note)
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
+fn empty_trash(state: State<AppState>) {
+    let mut trash = state.trash.lock().unwrap();
+    trash.clear();
+    save_trash(&trash);
 }
 
 #[tauri::command]
@@ -214,6 +284,11 @@ fn update_settings(
 #[tauri::command]
 fn open_settings(app: AppHandle) {
     open_settings_window(&app);
+}
+
+#[tauri::command]
+fn open_trash(app: AppHandle) {
+    open_trash_window(&app);
 }
 
 #[tauri::command]
@@ -271,6 +346,20 @@ fn open_settings_window(app: &AppHandle) {
         .build();
 }
 
+fn open_trash_window(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("trash") {
+        let _ = win.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, "trash", WebviewUrl::App("trash.html".into()))
+        .title("ゴミ箱")
+        .inner_size(360.0, 480.0)
+        .min_inner_size(300.0, 300.0)
+        .resizable(true)
+        .visible(true)
+        .build();
+}
+
 // ── App Menu ────────────────────────────────────────────────
 
 fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
@@ -281,7 +370,14 @@ fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
         true,
         Some("CmdOrCtrl+,"),
     )?;
-    let new_note_item = MenuItem::with_id(app, "new_note", "New Note", true, Some("CmdOrCtrl+N"))?;
+    let new_note_item = IconMenuItem::with_id_and_native_icon(
+        app,
+        "new_note",
+        "New Note",
+        true,
+        Some(NativeIcon::Add),
+        Some("CmdOrCtrl+N"),
+    )?;
 
     let app_submenu = Submenu::with_items(
         app,
@@ -300,7 +396,25 @@ fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
         ],
     )?;
 
-    let file_submenu = Submenu::with_items(app, "File", true, &[&new_note_item])?;
+    let trash_item = IconMenuItem::with_id_and_native_icon(
+        app,
+        "open_trash",
+        "Trash...",
+        true,
+        Some(NativeIcon::TrashEmpty),
+        Some("CmdOrCtrl+Shift+T"),
+    )?;
+
+    let file_submenu = Submenu::with_items(
+        app,
+        "File",
+        true,
+        &[
+            &new_note_item,
+            &PredefinedMenuItem::separator(app)?,
+            &trash_item,
+        ],
+    )?;
 
     let edit_submenu = Submenu::with_items(
         app,
@@ -350,6 +464,9 @@ fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
             open_note_window(app, &n);
             notes.push(n);
             save_notes(&notes);
+        }
+        "open_trash" => {
+            open_trash_window(app);
         }
         "zoom_in" => {
             let _ = app.emit("zoom", "in");
@@ -432,9 +549,11 @@ fn bring_all_to_front(app: &AppHandle) {
 pub fn run() {
     let notes = load_notes();
     let settings = load_settings();
+    let trash = load_trash();
     let state = AppState {
         notes: Mutex::new(notes),
         settings: Mutex::new(settings),
+        trash: Mutex::new(trash),
     };
 
     tauri::Builder::default()
@@ -455,6 +574,10 @@ pub fn run() {
             get_settings,
             update_settings,
             open_settings,
+            get_trash,
+            restore_note,
+            empty_trash,
+            open_trash,
         ])
         .setup(|app| {
             // Set up app menu and system tray

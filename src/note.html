@@ -165,18 +165,7 @@
   }
 
   .lines {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      transparent,
-      transparent 27px,
-      var(--text-muted) 27px,
-      var(--text-muted) 28px
-    );
-    background-position: 0 12px;
-    opacity: 0.3;
+    display: none;
   }
 
   .editor {
@@ -189,13 +178,16 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
     font-size: 14px;
-    line-height: 28px;
+    line-height: normal;
     user-select: text;
     -webkit-user-select: text;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-y: auto;
   }
+
+  .editor div { margin-bottom: 4px; }
+
 
   .editor:empty::before {
     content: 'メモを入力…';
@@ -214,7 +206,7 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
     font-size: 14px;
-    line-height: 28px;
+    line-height: 1.5;
     user-select: text;
     -webkit-user-select: text;
   }
@@ -222,19 +214,19 @@
   .markdown-view.active { display: block; }
 
   .md-placeholder { color: var(--text-muted); }
-  .md-line, .md-empty { min-height: 28px; word-break: break-word; }
+  .md-line, .md-empty { min-height: 21px; word-break: break-word; }
   .md-h1 { font-size: 17px; font-weight: 700; line-height: 1.4; margin: 4px 0 2px; }
   .md-h2 { font-size: 15px; font-weight: 600; line-height: 1.4; margin: 3px 0 1px; }
   .md-h3 { font-size: 14px; font-weight: 600; line-height: 1.4; margin: 2px 0 1px; }
 
-  .md-bullet { position: relative; min-height: 28px; padding-left: 14px; }
+  .md-bullet { position: relative; min-height: 21px; padding-left: 14px; }
   .md-bullet::before { content: '•'; position: absolute; left: 2px; }
 
   .md-check {
     display: flex;
     align-items: center;
     gap: 6px;
-    min-height: 28px;
+    min-height: 21px;
   }
   .md-check input[type="checkbox"] {
     cursor: pointer;
@@ -338,7 +330,7 @@
   const titlebar  = document.getElementById('titlebar');
   const picker    = document.getElementById('color-picker');
   const mdView    = document.getElementById('markdown-view');
-  const linesEl   = document.getElementById('lines');
+
 
   let saveTimer = null;
   let currentSettings = null;
@@ -370,9 +362,6 @@
       currentSettings = settings;
       const fs = settings.font_size;
       editor.style.fontSize = `${fs}px`;
-      editor.style.lineHeight = `${fs * 2}px`;
-      linesEl.style.backgroundImage =
-        `repeating-linear-gradient(to bottom, transparent, transparent ${fs * 2 - 1}px, var(--text-muted) ${fs * 2 - 1}px, var(--text-muted) ${fs * 2}px)`;
       noteEl.style.opacity = (settings.opacity ?? 100) / 100;
     }
     // Apply per-note zoom
@@ -414,13 +403,11 @@
     mdView.innerHTML = renderMarkdown(rawContent);
     mdView.classList.add('active');
     editor.style.display = 'none';
-    linesEl.style.display = 'none';
   }
 
   function showEditor() {
     mdView.classList.remove('active');
     editor.style.display = '';
-    linesEl.style.display = '';
     editor.focus();
   }
 
@@ -588,9 +575,6 @@
     currentSettings = s;
     const fs = s.font_size;
     editor.style.fontSize = `${fs}px`;
-    editor.style.lineHeight = `${fs * 2}px`;
-    linesEl.style.backgroundImage =
-      `repeating-linear-gradient(to bottom, transparent, transparent ${fs * 2 - 1}px, var(--text-muted) ${fs * 2 - 1}px, var(--text-muted) ${fs * 2}px)`;
     noteEl.style.opacity = (s.opacity ?? 100) / 100;
   });
 

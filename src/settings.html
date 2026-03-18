@@ -417,13 +417,28 @@
 <div class="panel" id="panel-help">
 
   <div class="section">
-    <div class="section-title">使い方</div>
+    <div class="section-title">基本操作</div>
     <ul class="usage-list">
-      <li><span class="icon">📝</span><span>付箋をクリックして文字を入力。変更は自動で保存されます。</span></li>
+      <li><span class="icon">📝</span><span>付箋をダブルクリックで編集モード。フォーカスを外すとプレビューに戻ります。</span></li>
       <li><span class="icon">🎨</span><span>タイトルバー右の ● ボタンで付箋の色を変更できます。</span></li>
-      <li><span class="icon">➕</span><span>タイトルバー右の ＋ ボタン、またはトレイメニューから新しい付箋を作成できます。</span></li>
-      <li><span class="icon">✕</span><span>タイトルバー左の ✕ ボタンで付箋を削除します（元に戻せません）。</span></li>
-      <li><span class="icon">↔️</span><span>タイトルバーをドラッグして移動、右下角をドラッグしてサイズ変更できます。</span></li>
+      <li><span class="icon">➕</span><span>＋ ボタン / トレイメニュー / ⌘N で新しい付箋を作成。</span></li>
+      <li><span class="icon">✕</span><span>✕ ボタンで付箋を削除。ゴミ箱から復元できます。</span></li>
+      <li><span class="icon">↔️</span><span>タイトルバーをドラッグで移動、右下角をドラッグでリサイズ。</span></li>
+      <li><span class="icon">🖱️</span><span>右クリックで操作メニュー（編集・付箋操作・ズーム）。</span></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Markdown記法</div>
+    <ul class="usage-list">
+      <li><span class="icon">#</span><span><code># 見出し</code> <code>## 中見出し</code> <code>### 小見出し</code></span></li>
+      <li><span class="icon">•</span><span><code>- 箇条書き</code>（Enter で自動継続、空行で解除）</span></li>
+      <li><span class="icon">☑</span><span><code>- [ ] タスク</code> / <code>- [x] 完了</code>（プレビューでクリック切替）</span></li>
+      <li><span class="icon">1.</span><span><code>1. 番号リスト</code>（Enter で番号自動インクリメント）</span></li>
+      <li><span class="icon">❝</span><span><code>> 引用</code></span></li>
+      <li><span class="icon">B</span><span><code>**太字**</code> <code>*斜体*</code> <code>~~取消線~~</code> <code>`コード`</code></span></li>
+      <li><span class="icon">🔗</span><span><code>[テキスト](URL)</code> — プレビューでクリックするとブラウザで開きます</span></li>
+      <li><span class="icon">—</span><span><code>---</code> で区切り線</span></li>
     </ul>
   </div>
 
@@ -431,10 +446,22 @@
     <div class="section-title">ショートカット</div>
     <table class="shortcut-table">
       <tr><td>新規ノート</td><td><kbd>⌘</kbd> <kbd>N</kbd></td></tr>
-      <tr><td>設定/ヘルプを開く</td><td><kbd>⌘</kbd> <kbd>,</kbd></td></tr>
+      <tr><td>ゴミ箱を開く</td><td><kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>T</kbd></td></tr>
+      <tr><td>ズームイン</td><td><kbd>⌘</kbd> <kbd>+</kbd></td></tr>
+      <tr><td>ズームアウト</td><td><kbd>⌘</kbd> <kbd>-</kbd></td></tr>
+      <tr><td>ズームリセット</td><td><kbd>⌘</kbd> <kbd>0</kbd></td></tr>
+      <tr><td>設定を開く</td><td><kbd>⌘</kbd> <kbd>,</kbd></td></tr>
       <tr><td>アプリを終了</td><td><kbd>⌘</kbd> <kbd>Q</kbd></td></tr>
-      <tr><td>ノートを削除</td><td>✕ ボタンをクリック</td></tr>
     </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">ペースト</div>
+    <ul class="usage-list">
+      <li><span class="icon">📋</span><span>ブラウザからリンクをコピペすると自動でMarkdownリンクに変換されます。</span></li>
+      <li><span class="icon">🔗</span><span>テキストを選択してURLを貼り付けると <code>[選択テキスト](URL)</code> に変換。</span></li>
+      <li><span class="icon">✨</span><span>リッチテキスト（太字・リスト等）も Markdown に自動変換されます。</span></li>
+    </ul>
   </div>
 
   <div class="section">

@@ -88,11 +88,11 @@ npm test
 ## リリース手順
 
 ```bash
-# 1. ビルド
-cargo tauri build
+# バージョンを指定してリリース（clippy → テスト → ビルド → GitHub Release 作成）
+./scripts/release.sh 0.2.0
 
-# 2. GitHub Releases にアップロード
-gh release create v0.1.0 ./src-tauri/target/release/bundle/dmg/*.dmg
+# バージョン省略時は tauri.conf.json の現在のバージョンを使用
+./scripts/release.sh
 ```
 
 ## アイコンについて

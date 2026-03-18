@@ -35,7 +35,9 @@
       "Bash(2)",
       "Bash(bash .dojo/run_dojo.sh 2>&1)",
       "Bash(npm run:*)",
-      "Bash(npm test:*)"
+      "Bash(npm test:*)",
+      "Bash(grep -l -i \"homebrew\\\\|tap\\\\|cask\" .github/workflows/*.yml)",
+      "Bash(gh api:*)"
     ]
   }
 }

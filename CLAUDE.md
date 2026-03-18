@@ -24,7 +24,26 @@ cargo test --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml
 ```
 
-前提条件: Rust 1.77+、Xcode Command Line Tools
+## VRT（ビジュアルリグレッションテスト）
+
+```bash
+# Playwright インストール（初回のみ）
+npm install
+npx playwright install chromium
+
+# VRT 実行
+npm test
+
+# スナップショット更新（UI変更後）
+npm run test:update
+
+# レポート表示
+npm run test:report
+```
+
+**重要**: フロントエンド（`src/note.html`, `src/settings.html` 等）を変更したら必ず VRT を走らせること。ベースライン更新が必要なら `npm run test:update` で更新してコミットに含める。
+
+前提条件: Rust 1.77+、Xcode Command Line Tools、Node.js（VRT用）
 
 ## アーキテクチャ
 

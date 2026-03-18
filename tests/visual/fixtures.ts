@@ -24,6 +24,7 @@ async function injectNoteMock(
     y: 0,
     width: 300,
     height: 350,
+    zoom: 100,
     ...noteOverrides,
   };
 
@@ -35,16 +36,28 @@ async function injectNoteMock(
             case "get_note":              return data.note;
             case "get_settings":          return data.settings;
             case "update_note_content":   return null;
+            case "update_note_color":     return null;
+            case "update_note_geometry":  return null;
+            case "update_note_zoom":      return null;
             case "update_settings":       return null;
+            case "delete_note":           return null;
+            case "create_note":           return null;
             default:                      return null;
           }
         },
+      },
+      event: {
+        listen: async () => () => {},
+      },
+      shell: {
+        open: async () => {},
       },
       webviewWindow: {
         getCurrentWebviewWindow: () => ({
           startDragging: async () => {},
           outerPosition: async () => ({ x: 0, y: 0 }),
           outerSize: async () => ({ width: 300, height: 350 }),
+          isFocused: async () => true,
         }),
       },
     };
@@ -73,6 +86,9 @@ async function injectSettingsMock(
             default:                           return null;
           }
         },
+      },
+      event: {
+        emit: async () => {},
       },
     };
   }, { settings, autostart: autostartEnabled });

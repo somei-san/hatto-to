@@ -25,6 +25,14 @@ test("note — markdown preview", async ({ openNote }) => {
   await expect(page).toHaveScreenshot("note-markdown.png");
 });
 
+test("note — markdown extended", async ({ openNote }) => {
+  const page = await openNote({
+    color: "yellow",
+    content: "**太字** と *斜体* と ~~取り消し~~\n`inline code` テスト\n\n> 引用テキスト\n\n1. 番号リスト1\n2. 番号リスト2\n\n---\n\n[リンク](https://example.com)",
+  });
+  await expect(page).toHaveScreenshot("note-markdown-extended.png");
+});
+
 test("color picker open", async ({ notePage }) => {
   await notePage.click("#btn-color");
   await notePage.waitForSelector(".color-picker.open");

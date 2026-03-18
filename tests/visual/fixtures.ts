@@ -91,6 +91,11 @@ async function injectSettingsMock(
       event: {
         emit: async () => {},
       },
+      webviewWindow: {
+        getCurrentWebviewWindow: () => ({
+          close: async () => { (window as any).__closeWasCalled = true; },
+        }),
+      },
     };
   }, { settings, autostart: autostartEnabled });
 }

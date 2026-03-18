@@ -31,12 +31,12 @@ test("settings tab — autostart on", async ({ openSettings }) => {
   await expect(page).toHaveScreenshot("settings-autostart-on.png");
 });
 
-test("settings tab — after save", async ({ settingsPage }) => {
+test("settings tab — save closes window", async ({ settingsPage }) => {
   await settingsPage.click('[data-color="green"]');
   await settingsPage.click('[data-size="12"]');
   await settingsPage.click("#save-btn");
-  await settingsPage.waitForSelector("#save-msg:not(:empty)");
-  await expect(settingsPage).toHaveScreenshot("settings-after-save.png");
+  const closeCalled = await settingsPage.evaluate(() => (window as any).__closeWasCalled);
+  expect(closeCalled).toBe(true);
 });
 
 // ── ヘルプタブ ─────────────────────────────────────────────

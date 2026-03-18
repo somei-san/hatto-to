@@ -165,15 +165,6 @@
   .save-btn:hover { opacity: 0.85; }
   .save-btn:active { opacity: 0.7; }
 
-  .save-msg {
-    text-align: center;
-    color: #34C759;
-    font-size: 12px;
-    margin-top: 8px;
-    min-height: 18px;
-    transition: opacity 0.3s;
-  }
-
   /* ── Help: Shortcuts ──────────────────────────────── */
   .shortcut-table {
     width: 100%;
@@ -420,7 +411,6 @@
   </div>
 
   <button class="save-btn" id="save-btn">保存</button>
-  <div class="save-msg" id="save-msg"></div>
 </div>
 
 <!-- ── Help Panel ─────────────────────────────────── -->
@@ -460,6 +450,7 @@
 <script>
   const { invoke } = window.__TAURI__.core;
   const { emit } = window.__TAURI__.event;
+  const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
 
   let currentColor   = 'yellow';
   let currentSize    = 14;
@@ -520,9 +511,7 @@
       opacity: currentOpacity,
       edit_on_single_click: currentSingleClick,
     });
-    const msg = document.getElementById('save-msg');
-    msg.textContent = '保存しました';
-    setTimeout(() => { msg.textContent = ''; }, 2000);
+    getCurrentWebviewWindow().close();
   });
 
   // ── Opacity Slider ────────────────────────────────────

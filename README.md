@@ -91,21 +91,10 @@ npm test
 # 1. ビルド
 cargo tauri build
 
-# 2. 署名 & 公証（Apple Developer ID が必要）
-codesign --sign "Developer ID Application: ..." \
-  ./src-tauri/target/release/bundle/macos/Hatto-to.app
-
-xcrun notarytool submit \
-  ./src-tauri/target/release/bundle/dmg/Hatto-to_0.1.0_aarch64.dmg \
-  --apple-id $APPLE_ID --password $APP_PASSWORD --team-id $TEAM_ID --wait
-
-xcrun stapler staple \
-  ./src-tauri/target/release/bundle/dmg/Hatto-to_0.1.0_aarch64.dmg
-
-# 3. GitHub Releases にアップロード
+# 2. GitHub Releases にアップロード
 gh release create v0.1.0 ./src-tauri/target/release/bundle/dmg/*.dmg
 
-# 4. Homebrew Tap は GitHub Actions が自動更新
+# 3. Homebrew Tap は GitHub Actions が自動更新
 ```
 
 ## アイコンについて

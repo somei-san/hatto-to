@@ -471,13 +471,34 @@
     editor.focus();
   }
 
-  // Click on preview: links open in browser, checkboxes toggle
+  const MD_PATTERNS = [
+    /^#{1,3} /m,              // heading
+    /^[-*] /m,                // bullet list
+    /^> /m,                   // blockquote
+    /^\d+\. /m,               // ordered list
+    /^[-*_]{3,}$/m,           // horizontal rule
+    /\*\*/,                   // bold (**)
+    /(?<!\w)__[^\s_].*?__/,   // bold (__)
+    /(?<![*\w])\*(?![\s*])/,  // italic
+    /~~/,                     // strikethrough
+    /`[^`]/,                  // inline code
+    /!\[/,                    // image
+    /\[.+?\]\(.+?\)/,        // link
+  ];
+
+  function hasMarkdownSyntax(text) {
+    return MD_PATTERNS.some(r => r.test(text));
+  }
+
+  // Click on preview: links open in browser; plain text → edit on single click
   mdView.addEventListener('click', (e) => {
     const link = e.target.closest('a[data-url]');
     if (link) {
       e.preventDefault();
       window.__TAURI__.shell.open(link.dataset.url);
+      return;
     }
+    if (!rawContent || !hasMarkdownSyntax(rawContent)) showEditor();
   });
 
   // Double-click on preview → edit mode
@@ -702,6 +723,7 @@
 
   // ── Expose for testing ──────────────────────────────
   window.htmlToMarkdown = htmlToMarkdown;
+  window.hasMarkdownSyntax = hasMarkdownSyntax;
 
   // ── Init ──────────────────────────────────────────
   loadNote();

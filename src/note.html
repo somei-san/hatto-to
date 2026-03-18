@@ -342,6 +342,7 @@
 
   let saveTimer = null;
   let currentSettings = null;
+  let rawContent = '';
 
   // ── Apply Color Theme ─────────────────────────────
   function applyColor(color) {
@@ -361,7 +362,8 @@
     ]);
     if (!note) return;
 
-    editor.innerText = note.content;
+    rawContent = note.content;
+    editor.innerText = rawContent;
     applyColor(note.color);
 
     if (settings) {
@@ -407,7 +409,7 @@
   }
 
   function showPreview() {
-    mdView.innerHTML = renderMarkdown(editor.innerText);
+    mdView.innerHTML = renderMarkdown(rawContent);
     mdView.classList.add('active');
     editor.style.display = 'none';
     linesEl.style.display = 'none';
@@ -442,15 +444,16 @@
   mdView.addEventListener('change', (e) => {
     if (e.target.type !== 'checkbox') return;
     const lineIdx = parseInt(e.target.dataset.line, 10);
-    const lines = editor.innerText.split('\n');
+    const lines = rawContent.split('\n');
     if (e.target.checked) {
       lines[lineIdx] = lines[lineIdx].replace(/^([-*] )\[ \] /, '$1[x] ');
     } else {
       lines[lineIdx] = lines[lineIdx].replace(/^([-*] )\[x\] /i, '$1[ ] ');
     }
-    editor.innerText = lines.join('\n');
-    invoke('update_note_content', { id: noteId, content: editor.innerText });
-    mdView.innerHTML = renderMarkdown(editor.innerText);
+    rawContent = lines.join('\n');
+    editor.innerText = rawContent;
+    invoke('update_note_content', { id: noteId, content: rawContent });
+    mdView.innerHTML = renderMarkdown(rawContent);
   });
 
   // ── Zoom ──────────────────────────────────────────
@@ -487,9 +490,10 @@
 
   // ── Auto-Save Content ─────────────────────────────
   editor.addEventListener('input', () => {
+    rawContent = editor.innerText;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      invoke('update_note_content', { id: noteId, content: editor.innerText });
+      invoke('update_note_content', { id: noteId, content: rawContent });
     }, 300);
   });
 

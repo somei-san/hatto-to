@@ -408,6 +408,13 @@
         <div class="toggle-track"></div>
       </label>
     </div>
+    <div class="toggle-row" style="margin-top:12px;">
+      <span class="toggle-label">ピン留めボタンを表示</span>
+      <label class="toggle">
+        <input type="checkbox" id="show-pin-toggle" checked />
+        <div class="toggle-track"></div>
+      </label>
+    </div>
   </div>
 
   <div class="section">
@@ -496,6 +503,7 @@
   let currentOpacity = 100;
   let currentSingleClick = false;
   let currentBringAll = true;
+  let currentShowPin = true;
 
   // ── Tabs ────────────────────────────────────────────
   document.querySelectorAll('.tab').forEach(tab => {
@@ -543,6 +551,7 @@
       opacity: currentOpacity,
       editOnSingleClick: currentSingleClick,
       bringAllToFront: currentBringAll,
+      showPinButton: currentShowPin,
     });
     emit('settings-changed', {
       default_color: currentColor,
@@ -551,6 +560,7 @@
       opacity: currentOpacity,
       edit_on_single_click: currentSingleClick,
       bring_all_to_front: currentBringAll,
+      show_pin_button: currentShowPin,
     });
     getCurrentWebviewWindow().close();
   });
@@ -574,6 +584,12 @@
   const bringAllToggle = document.getElementById('bring-all-toggle');
   bringAllToggle.addEventListener('change', () => {
     currentBringAll = bringAllToggle.checked;
+  });
+
+  // ── Show Pin Toggle ──────────────────────────────
+  const showPinToggle = document.getElementById('show-pin-toggle');
+  showPinToggle.addEventListener('change', () => {
+    currentShowPin = showPinToggle.checked;
   });
 
   // ── Autostart Toggle ─────────────────────────────────
@@ -618,6 +634,9 @@
 
     currentBringAll = s.bring_all_to_front !== false;
     bringAllToggle.checked = currentBringAll;
+
+    currentShowPin = s.show_pin_button !== false;
+    showPinToggle.checked = currentShowPin;
 
     autostartToggle.checked = !!autostartEnabled;
 

@@ -24,6 +24,8 @@ pub struct Note {
     pub height: f64,
     #[serde(default = "default_zoom")]
     pub zoom: u32,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 fn default_zoom() -> u32 {
@@ -41,6 +43,7 @@ impl Note {
             width: 280.0,
             height: 320.0,
             zoom: 100,
+            pinned: false,
         }
     }
 }
@@ -55,9 +58,15 @@ pub struct Settings {
     pub edit_on_single_click: bool,
     #[serde(default = "default_bring_all_to_front")]
     pub bring_all_to_front: bool,
+    #[serde(default = "default_show_pin_button")]
+    pub show_pin_button: bool,
 }
 
 fn default_bring_all_to_front() -> bool {
+    true
+}
+
+fn default_show_pin_button() -> bool {
     true
 }
 
@@ -70,6 +79,7 @@ impl Default for Settings {
             opacity: 100,
             edit_on_single_click: false,
             bring_all_to_front: true,
+            show_pin_button: true,
         }
     }
 }
@@ -243,6 +253,15 @@ fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) {
 }
 
 #[tauri::command]
+fn update_note_pinned(id: String, pinned: bool, state: State<AppState>) {
+    let mut notes = state.notes.lock().unwrap();
+    if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
+        note.pinned = pinned;
+    }
+    save_notes(&notes);
+}
+
+#[tauri::command]
 fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
     {
         let mut notes = state.notes.lock().unwrap();
@@ -308,6 +327,7 @@ fn update_settings(
     opacity: u32,
     edit_on_single_click: bool,
     bring_all_to_front: bool,
+    show_pin_button: bool,
     state: State<AppState>,
 ) {
     let mut settings = state.settings.lock().unwrap();
@@ -317,6 +337,7 @@ fn update_settings(
     settings.opacity = opacity.clamp(20, 100);
     settings.edit_on_single_click = edit_on_single_click;
     settings.bring_all_to_front = bring_all_to_front;
+    settings.show_pin_button = show_pin_button;
     save_settings(&settings);
 }
 
@@ -364,7 +385,7 @@ fn open_note_window(app: &AppHandle, note: &Note) {
         .position(note.x, note.y)
         .decorations(false)
         .transparent(true)
-        .always_on_top(false)
+        .always_on_top(note.pinned)
         .visible(true)
         .build();
 }
@@ -659,6 +680,7 @@ pub fn run() {
             update_note_color,
             update_note_geometry,
             update_note_zoom,
+            update_note_pinned,
             delete_note,
             create_note,
             get_settings,
@@ -726,6 +748,7 @@ mod tests {
             width: 280.0,
             height: 320.0,
             zoom: 100,
+            pinned: false,
         }
     }
 
@@ -747,6 +770,7 @@ mod tests {
         assert_eq!(note.width, 280.0);
         assert_eq!(note.height, 320.0);
         assert_eq!(note.zoom, 100);
+        assert!(!note.pinned);
     }
 
     #[test]
@@ -766,6 +790,7 @@ mod tests {
         assert_eq!(s.opacity, 100);
         assert!(!s.edit_on_single_click);
         assert!(s.bring_all_to_front);
+        assert!(s.show_pin_button);
     }
 
     // ── Trash FIFO ──
@@ -865,6 +890,7 @@ mod tests {
             opacity: 80,
             edit_on_single_click: true,
             bring_all_to_front: false,
+            show_pin_button: true,
         };
         save_settings_to(&settings, &path);
         let loaded = load_settings_from(&path);

@@ -9,6 +9,7 @@ const DEFAULT_SETTINGS = {
   opacity: 100,
   edit_on_single_click: false,
   bring_all_to_front: true,
+  show_pin_button: true,
 };
 
 // ── Note mock ──────────────────────────────────────────────
@@ -27,6 +28,7 @@ async function injectNoteMock(
     width: 300,
     height: 350,
     zoom: 100,
+    pinned: false,
     ...noteOverrides,
   };
 
@@ -41,6 +43,7 @@ async function injectNoteMock(
             case "update_note_color":     return null;
             case "update_note_geometry":  return null;
             case "update_note_zoom":      return null;
+            case "update_note_pinned":    return null;
             case "update_settings":       return null;
             case "delete_note":           return null;
             case "create_note":           return null;
@@ -60,6 +63,7 @@ async function injectNoteMock(
           startDragging: async () => {},
           outerPosition: async () => ({ x: 0, y: 0 }),
           outerSize: async () => ({ width: 300, height: 350 }),
+          setAlwaysOnTop: async () => {},
           isFocused: async () => true,
         }),
       },

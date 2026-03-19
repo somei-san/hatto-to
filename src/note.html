@@ -108,6 +108,14 @@
     color: white;
   }
 
+  .btn-pin.active {
+    background: rgba(0,0,0,0.22);
+    transform: rotate(-45deg);
+  }
+  .btn-pin.active:hover {
+    background: rgba(0,0,0,0.28);
+  }
+
   .btn svg {
     width: 12px;
     height: 12px;
@@ -408,6 +416,9 @@
         <button class="btn" id="btn-new" title="New Note">
           <svg viewBox="0 0 12 12"><line x1="6" y1="2" x2="6" y2="10"/><line x1="2" y1="6" x2="10" y2="6"/></svg>
         </button>
+        <button class="btn btn-pin" id="btn-pin" title="Pin">
+          <svg viewBox="0 0 12 12"><line x1="6" y1="1" x2="6" y2="8" stroke-width="2"/><circle cx="6" cy="9.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+        </button>
         <button class="btn" id="btn-color" title="Color">
           <svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4" fill="currentColor" stroke="none"/></svg>
         </button>
@@ -496,6 +507,15 @@
       const fs = settings.font_size;
       editor.style.fontSize = `${fs}px`;
       noteEl.style.opacity = (settings.opacity ?? 100) / 100;
+      // Show/hide pin button based on settings
+      const pinBtn = document.getElementById('btn-pin');
+      pinBtn.style.display = settings.show_pin_button === false ? 'none' : '';
+    }
+    // Apply pinned state
+    if (note.pinned) {
+      const pinBtn = document.getElementById('btn-pin');
+      pinBtn.classList.add('active');
+      appWindow.setAlwaysOnTop(true);
     }
     // Apply per-note zoom
     currentZoom = note.zoom ?? 100;
@@ -969,6 +989,15 @@
     });
   });
 
+  // ── Pin Button ──────────────────────────────────────
+  document.getElementById('btn-pin').addEventListener('click', async () => {
+    const pinBtn = document.getElementById('btn-pin');
+    const isPinned = !pinBtn.classList.contains('active');
+    pinBtn.classList.toggle('active', isPinned);
+    await appWindow.setAlwaysOnTop(isPinned);
+    await invoke('update_note_pinned', { id: noteId, pinned: isPinned });
+  });
+
   // Close picker on click outside
   document.addEventListener('click', (e) => {
     if (!e.target.closest('#color-picker') && !e.target.closest('#btn-color')) {
@@ -998,6 +1027,9 @@
     const fs = s.font_size;
     editor.style.fontSize = `${fs}px`;
     noteEl.style.opacity = (s.opacity ?? 100) / 100;
+    // Show/hide pin button based on settings
+    const pinBtn = document.getElementById('btn-pin');
+    pinBtn.style.display = s.show_pin_button === false ? 'none' : '';
   });
 
   // ── Context Menu ─────────────────────────────────────

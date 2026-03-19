@@ -43,6 +43,7 @@ async function injectNoteMock(
             case "update_settings":       return null;
             case "delete_note":           return null;
             case "create_note":           return null;
+            case "bring_other_notes_to_front": return null;
             default:                      return null;
           }
         },

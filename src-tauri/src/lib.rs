@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Instant;
 use tauri::{
     menu::{IconMenuItem, Menu, MenuItem, NativeIcon, PredefinedMenuItem, Submenu},
     tray::TrayIconBuilder,
@@ -72,6 +73,7 @@ pub struct AppState {
     notes: Mutex<Vec<Note>>,
     settings: Mutex<Settings>,
     trash: Mutex<Vec<Note>>,
+    last_bring_to_front: Mutex<Instant>,
 }
 
 // ── Persistence ─────────────────────────────────────────────
@@ -572,6 +574,37 @@ fn bring_all_to_front(app: &AppHandle) {
     }
 }
 
+#[tauri::command]
+fn bring_other_notes_to_front(caller_id: String, app: AppHandle, state: State<AppState>) {
+    // Cooldown: skip if triggered within last 1 second
+    {
+        let mut last = state.last_bring_to_front.lock().unwrap();
+        if last.elapsed() < std::time::Duration::from_secs(1) {
+            return;
+        }
+        *last = Instant::now();
+    }
+    // Clone IDs only, release lock before window operations to avoid deadlock
+    let ids: Vec<String> = {
+        let notes = state.notes.lock().unwrap();
+        notes
+            .iter()
+            .filter(|n| n.id != caller_id)
+            .map(|n| n.id.clone())
+            .collect()
+    };
+    for id in &ids {
+        if let Some(win) = app.get_webview_window(&format!("note-{}", id)) {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    }
+    // Re-focus the caller so it stays on top
+    if let Some(win) = app.get_webview_window(&format!("note-{}", caller_id)) {
+        let _ = win.set_focus();
+    }
+}
+
 // ── App Entry ───────────────────────────────────────────────
 
 pub fn run() {
@@ -582,6 +615,7 @@ pub fn run() {
         notes: Mutex::new(notes),
         settings: Mutex::new(settings),
         trash: Mutex::new(trash),
+        last_bring_to_front: Mutex::new(Instant::now() - std::time::Duration::from_secs(10)),
     };
 
     tauri::Builder::default()
@@ -606,6 +640,7 @@ pub fn run() {
             restore_note,
             empty_trash,
             open_trash,
+            bring_other_notes_to_front,
         ])
         .setup(|app| {
             // Set up app menu and system tray
@@ -707,14 +742,18 @@ mod tests {
 
     #[test]
     fn trash_fifo_within_limit() {
-        let mut trash: Vec<Note> = (0..20).map(|i| make_note(&i.to_string(), "yellow", "")).collect();
+        let mut trash: Vec<Note> = (0..20)
+            .map(|i| make_note(&i.to_string(), "yellow", ""))
+            .collect();
         enforce_trash_limit(&mut trash);
         assert_eq!(trash.len(), 20);
     }
 
     #[test]
     fn trash_fifo_overflow_by_one() {
-        let mut trash: Vec<Note> = (0..21).map(|i| make_note(&i.to_string(), "yellow", "")).collect();
+        let mut trash: Vec<Note> = (0..21)
+            .map(|i| make_note(&i.to_string(), "yellow", ""))
+            .collect();
         enforce_trash_limit(&mut trash);
         assert_eq!(trash.len(), 20);
         // oldest (id "0") should be removed
@@ -723,7 +762,9 @@ mod tests {
 
     #[test]
     fn trash_fifo_overflow_by_five() {
-        let mut trash: Vec<Note> = (0..25).map(|i| make_note(&i.to_string(), "yellow", "")).collect();
+        let mut trash: Vec<Note> = (0..25)
+            .map(|i| make_note(&i.to_string(), "yellow", ""))
+            .collect();
         enforce_trash_limit(&mut trash);
         assert_eq!(trash.len(), 20);
         assert_eq!(trash[0].id, "5");

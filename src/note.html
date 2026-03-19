@@ -898,10 +898,17 @@
   });
 
   // ── Drag Window ───────────────────────────────────
+  let dragging = false;
+  let dragTimeout = null;
   titlebar.addEventListener('mousedown', (e) => {
     if (e.target.closest('.btn') || e.target.closest('.color-picker')) return;
+    dragging = true;
     appWindow.startDragging();
+    // Fallback: clear flag after 5s in case mouseup is consumed by startDragging
+    clearTimeout(dragTimeout);
+    dragTimeout = setTimeout(() => { dragging = false; }, 5000);
   });
+  document.addEventListener('mouseup', () => { dragging = false; });
 
   // ── Save Position/Size on Move & Resize ───────────
   let geoTimer = null;
@@ -1121,6 +1128,17 @@
   window.getAutoPrefix = getAutoPrefix;
   window.isEmptyListItem = isEmptyListItem;
   window.renderMarkdown = renderMarkdown;
+
+  // ── Bring all notes to front on focus ──────────
+  let bringTimer = null;
+  window.addEventListener('focus', () => {
+    clearTimeout(bringTimer);
+    bringTimer = setTimeout(() => {
+      if (dragging) return;
+      invoke('bring_other_notes_to_front', { callerId: noteId });
+    }, 500);
+  });
+
 
   // ── Init ──────────────────────────────────────────
   loadNote();

@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   zoom: 100,
   opacity: 100,
   edit_on_single_click: false,
+  bring_all_to_front: true,
 };
 
 // ── Note mock ──────────────────────────────────────────────

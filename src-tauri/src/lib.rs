@@ -53,6 +53,12 @@ pub struct Settings {
     pub opacity: u32,
     #[serde(default)]
     pub edit_on_single_click: bool,
+    #[serde(default = "default_bring_all_to_front")]
+    pub bring_all_to_front: bool,
+}
+
+fn default_bring_all_to_front() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -63,6 +69,7 @@ impl Default for Settings {
             zoom: 100,
             opacity: 100,
             edit_on_single_click: false,
+            bring_all_to_front: true,
         }
     }
 }
@@ -300,6 +307,7 @@ fn update_settings(
     zoom: u32,
     opacity: u32,
     edit_on_single_click: bool,
+    bring_all_to_front: bool,
     state: State<AppState>,
 ) {
     let mut settings = state.settings.lock().unwrap();
@@ -308,6 +316,7 @@ fn update_settings(
     settings.zoom = zoom.clamp(50, 200);
     settings.opacity = opacity.clamp(20, 100);
     settings.edit_on_single_click = edit_on_single_click;
+    settings.bring_all_to_front = bring_all_to_front;
     save_settings(&settings);
 }
 
@@ -737,6 +746,7 @@ mod tests {
         assert_eq!(s.zoom, 100);
         assert_eq!(s.opacity, 100);
         assert!(!s.edit_on_single_click);
+        assert!(s.bring_all_to_front);
     }
 
     // ── Trash FIFO ──
@@ -835,6 +845,7 @@ mod tests {
             zoom: 150,
             opacity: 80,
             edit_on_single_click: true,
+            bring_all_to_front: false,
         };
         save_settings_to(&settings, &path);
         let loaded = load_settings_from(&path);

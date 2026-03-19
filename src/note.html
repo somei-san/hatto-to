@@ -1135,6 +1135,7 @@
     clearTimeout(bringTimer);
     bringTimer = setTimeout(() => {
       if (dragging) return;
+      if (currentSettings && !currentSettings.bring_all_to_front) return;
       invoke('bring_other_notes_to_front', { callerId: noteId });
     }, 500);
   }

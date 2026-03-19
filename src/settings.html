@@ -400,6 +400,17 @@
   </div>
 
   <div class="section">
+    <div class="section-title">表示</div>
+    <div class="toggle-row">
+      <span class="toggle-label">付箋をクリックしたら全付箋を前面に表示</span>
+      <label class="toggle">
+        <input type="checkbox" id="bring-all-toggle" checked />
+        <div class="toggle-track"></div>
+      </label>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">システム</div>
     <div class="toggle-row">
       <span class="toggle-label">ログイン時に自動起動</span>
@@ -484,6 +495,7 @@
   let currentZoom    = 100;
   let currentOpacity = 100;
   let currentSingleClick = false;
+  let currentBringAll = true;
 
   // ── Tabs ────────────────────────────────────────────
   document.querySelectorAll('.tab').forEach(tab => {
@@ -530,6 +542,7 @@
       zoom: currentZoom,
       opacity: currentOpacity,
       editOnSingleClick: currentSingleClick,
+      bringAllToFront: currentBringAll,
     });
     emit('settings-changed', {
       default_color: currentColor,
@@ -537,6 +550,7 @@
       zoom: currentZoom,
       opacity: currentOpacity,
       edit_on_single_click: currentSingleClick,
+      bring_all_to_front: currentBringAll,
     });
     getCurrentWebviewWindow().close();
   });
@@ -554,6 +568,12 @@
   const singleClickToggle = document.getElementById('single-click-toggle');
   singleClickToggle.addEventListener('change', () => {
     currentSingleClick = singleClickToggle.checked;
+  });
+
+  // ── Bring All Toggle ──────────────────────────────
+  const bringAllToggle = document.getElementById('bring-all-toggle');
+  bringAllToggle.addEventListener('change', () => {
+    currentBringAll = bringAllToggle.checked;
   });
 
   // ── Autostart Toggle ─────────────────────────────────
@@ -595,6 +615,9 @@
 
     currentSingleClick = !!s.edit_on_single_click;
     singleClickToggle.checked = currentSingleClick;
+
+    currentBringAll = s.bring_all_to_front !== false;
+    bringAllToggle.checked = currentBringAll;
 
     autostartToggle.checked = !!autostartEnabled;
   }

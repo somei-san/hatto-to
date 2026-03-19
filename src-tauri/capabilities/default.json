@@ -11,6 +11,7 @@
     "core:window:allow-outer-position",
     "core:window:allow-outer-size",
     "core:window:allow-inner-size",
+    "core:window:allow-set-always-on-top",
     "core:webview:default",
     "shell:allow-open",
     "autostart:allow-enable",

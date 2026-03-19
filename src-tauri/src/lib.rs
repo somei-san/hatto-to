@@ -400,6 +400,7 @@ fn open_note_window(app: &AppHandle, note: &Note) {
         .decorations(false)
         .transparent(true)
         .always_on_top(note.pinned)
+        .accept_first_mouse(true)
         .visible(true)
         .build();
 }

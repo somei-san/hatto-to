@@ -10,6 +10,8 @@ const DEFAULT_SETTINGS = {
   edit_on_single_click: false,
   bring_all_to_front: true,
   show_pin_button: true,
+  show_new_button: true,
+  show_color_button: true,
 };
 
 // ── Note mock ──────────────────────────────────────────────

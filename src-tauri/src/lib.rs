@@ -60,6 +60,10 @@ pub struct Settings {
     pub bring_all_to_front: bool,
     #[serde(default = "default_show_pin_button")]
     pub show_pin_button: bool,
+    #[serde(default = "default_true")]
+    pub show_new_button: bool,
+    #[serde(default = "default_true")]
+    pub show_color_button: bool,
 }
 
 fn default_bring_all_to_front() -> bool {
@@ -67,6 +71,10 @@ fn default_bring_all_to_front() -> bool {
 }
 
 fn default_show_pin_button() -> bool {
+    true
+}
+
+fn default_true() -> bool {
     true
 }
 
@@ -80,6 +88,8 @@ impl Default for Settings {
             edit_on_single_click: false,
             bring_all_to_front: true,
             show_pin_button: true,
+            show_new_button: true,
+            show_color_button: true,
         }
     }
 }
@@ -328,6 +338,8 @@ fn update_settings(
     edit_on_single_click: bool,
     bring_all_to_front: bool,
     show_pin_button: bool,
+    show_new_button: bool,
+    show_color_button: bool,
     state: State<AppState>,
 ) {
     let mut settings = state.settings.lock().unwrap();
@@ -338,6 +350,8 @@ fn update_settings(
     settings.edit_on_single_click = edit_on_single_click;
     settings.bring_all_to_front = bring_all_to_front;
     settings.show_pin_button = show_pin_button;
+    settings.show_new_button = show_new_button;
+    settings.show_color_button = show_color_button;
     save_settings(&settings);
 }
 
@@ -791,6 +805,8 @@ mod tests {
         assert!(!s.edit_on_single_click);
         assert!(s.bring_all_to_front);
         assert!(s.show_pin_button);
+        assert!(s.show_new_button);
+        assert!(s.show_color_button);
     }
 
     // ── Trash FIFO ──
@@ -891,6 +907,8 @@ mod tests {
             edit_on_single_click: true,
             bring_all_to_front: false,
             show_pin_button: true,
+            show_new_button: true,
+            show_color_button: true,
         };
         save_settings_to(&settings, &path);
         let loaded = load_settings_from(&path);

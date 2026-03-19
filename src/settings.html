@@ -415,6 +415,20 @@
         <div class="toggle-track"></div>
       </label>
     </div>
+    <div class="toggle-row" style="margin-top:12px;">
+      <span class="toggle-label">新規ノートボタンを表示</span>
+      <label class="toggle">
+        <input type="checkbox" id="show-new-toggle" checked />
+        <div class="toggle-track"></div>
+      </label>
+    </div>
+    <div class="toggle-row" style="margin-top:12px;">
+      <span class="toggle-label">カラーボタンを表示</span>
+      <label class="toggle">
+        <input type="checkbox" id="show-color-toggle" checked />
+        <div class="toggle-track"></div>
+      </label>
+    </div>
   </div>
 
   <div class="section">
@@ -504,6 +518,8 @@
   let currentSingleClick = false;
   let currentBringAll = true;
   let currentShowPin = true;
+  let currentShowNew = true;
+  let currentShowColor = true;
 
   // ── Tabs ────────────────────────────────────────────
   document.querySelectorAll('.tab').forEach(tab => {
@@ -552,6 +568,8 @@
       editOnSingleClick: currentSingleClick,
       bringAllToFront: currentBringAll,
       showPinButton: currentShowPin,
+      showNewButton: currentShowNew,
+      showColorButton: currentShowColor,
     });
     emit('settings-changed', {
       default_color: currentColor,
@@ -561,6 +579,8 @@
       edit_on_single_click: currentSingleClick,
       bring_all_to_front: currentBringAll,
       show_pin_button: currentShowPin,
+      show_new_button: currentShowNew,
+      show_color_button: currentShowColor,
     });
     getCurrentWebviewWindow().close();
   });
@@ -590,6 +610,18 @@
   const showPinToggle = document.getElementById('show-pin-toggle');
   showPinToggle.addEventListener('change', () => {
     currentShowPin = showPinToggle.checked;
+  });
+
+  // ── Show New Toggle ──────────────────────────────
+  const showNewToggle = document.getElementById('show-new-toggle');
+  showNewToggle.addEventListener('change', () => {
+    currentShowNew = showNewToggle.checked;
+  });
+
+  // ── Show Color Toggle ──────────────────────────────
+  const showColorToggle = document.getElementById('show-color-toggle');
+  showColorToggle.addEventListener('change', () => {
+    currentShowColor = showColorToggle.checked;
   });
 
   // ── Autostart Toggle ─────────────────────────────────
@@ -637,6 +669,12 @@
 
     currentShowPin = s.show_pin_button !== false;
     showPinToggle.checked = currentShowPin;
+
+    currentShowNew = s.show_new_button !== false;
+    showNewToggle.checked = currentShowNew;
+
+    currentShowColor = s.show_color_button !== false;
+    showColorToggle.checked = currentShowColor;
 
     autostartToggle.checked = !!autostartEnabled;
 

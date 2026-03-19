@@ -560,6 +560,12 @@
       // Show/hide pin button based on settings
       const pinBtn = document.getElementById('btn-pin');
       pinBtn.style.display = settings.show_pin_button === false ? 'none' : '';
+      // Show/hide new note button based on settings
+      const newBtn = document.getElementById('btn-new');
+      newBtn.style.display = settings.show_new_button === false ? 'none' : '';
+      // Show/hide color button based on settings
+      const colorBtn = document.getElementById('btn-color');
+      colorBtn.style.display = settings.show_color_button === false ? 'none' : '';
     }
     // Apply pinned state
     if (note.pinned) {
@@ -1080,6 +1086,12 @@
     // Show/hide pin button based on settings
     const pinBtn = document.getElementById('btn-pin');
     pinBtn.style.display = s.show_pin_button === false ? 'none' : '';
+    // Show/hide new note button based on settings
+    const newBtn = document.getElementById('btn-new');
+    newBtn.style.display = s.show_new_button === false ? 'none' : '';
+    // Show/hide color button based on settings
+    const colorBtn = document.getElementById('btn-color');
+    colorBtn.style.display = s.show_color_button === false ? 'none' : '';
   });
 
   // ── Context Menu ─────────────────────────────────────

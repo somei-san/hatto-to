@@ -84,6 +84,63 @@ test.describe("Markdown autocontinue E2E", () => {
     expect(text).not.toMatch(/hello world\n\d+\./);
   });
 
+  // ── Indented checkbox auto-continue ────────────────────
+  test("indented '  - [ ] task' → Enter inserts '  - [ ] ' prefix", async ({ openNote }) => {
+    const page = await openNote();
+    await enterEditMode(page);
+    await page.keyboard.type("  - [ ] task");
+    await page.keyboard.press("Enter");
+    const text = await page.$eval(".editor", (el) => (el as HTMLElement).innerText);
+    expect(text).toContain("  - [ ] task\n  - [ ] ");
+  });
+
+  test("indented '  - item' → Enter inserts '  - ' prefix", async ({ openNote }) => {
+    const page = await openNote();
+    await enterEditMode(page);
+    await page.keyboard.type("  - item1");
+    await page.keyboard.press("Enter");
+    const text = await page.$eval(".editor", (el) => (el as HTMLElement).innerText);
+    expect(text).toContain("  - item1\n  - ");
+  });
+
+  test("indented '  1. item' → Enter inserts '  2. ' prefix", async ({ openNote }) => {
+    const page = await openNote();
+    await enterEditMode(page);
+    await page.keyboard.type("  1. item1");
+    await page.keyboard.press("Enter");
+    const text = await page.$eval(".editor", (el) => (el as HTMLElement).innerText);
+    expect(text).toContain("  1. item1\n  2. ");
+  });
+
+  // ── Enter at beginning/middle of line ─────────────────
+  test("Enter at middle of '- hello world' splits and continues", async ({ openNote }) => {
+    const page = await openNote();
+    await enterEditMode(page);
+    await page.keyboard.type("- hello world");
+    // Move caret to middle (after "hello")
+    for (let i = 0; i < " world".length; i++) {
+      await page.keyboard.press("ArrowLeft");
+    }
+    await page.keyboard.press("Enter");
+    const text = await page.$eval(".editor", (el) => (el as HTMLElement).innerText);
+    // Should split: "- hello\n- world"
+    expect(text).toContain("- hello\n- world");
+  });
+
+  test("Enter at beginning of '- item' inserts prefix before content", async ({ openNote }) => {
+    const page = await openNote();
+    await enterEditMode(page);
+    await page.keyboard.type("- item");
+    // Move caret to right after "- " (beginning of content)
+    for (let i = 0; i < "item".length; i++) {
+      await page.keyboard.press("ArrowLeft");
+    }
+    await page.keyboard.press("Enter");
+    const text = await page.$eval(".editor", (el) => (el as HTMLElement).innerText);
+    // Should have "- \n- item"
+    expect(text).toContain("- \n- item");
+  });
+
   // ── Re-entry guard (no infinite loop) ──────────────────
   test("auto-insert does not freeze (re-entry guard)", async ({ openNote }) => {
     const page = await openNote();

@@ -53,6 +53,35 @@ test.describe("getAutoPrefix", () => {
   test("empty string → null", async ({ notePage }) => {
     expect(await getAutoPrefix(notePage, "")).toBeNull();
   });
+
+  // ── Indented lines ────────────────────────────────
+  test("'  - item' → '  - ' (preserves indent)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  - item")).toBe("  - ");
+  });
+
+  test("'  * item' → '  * ' (preserves indent)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  * item")).toBe("  * ");
+  });
+
+  test("'  - [ ] task' → '  - [ ] ' (preserves indent)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  - [ ] task")).toBe("  - [ ] ");
+  });
+
+  test("'  - [x] done' → '  - [ ] ' (preserves indent, unchecked)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  - [x] done")).toBe("  - [ ] ");
+  });
+
+  test("'  1. item' → '  2. ' (preserves indent)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  1. item")).toBe("  2. ");
+  });
+
+  test("'    > quote' → '    > ' (preserves indent)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "    > quote")).toBe("    > ");
+  });
+
+  test("'  plain text' → null (indent but no prefix)", async ({ notePage }) => {
+    expect(await getAutoPrefix(notePage, "  plain text")).toBeNull();
+  });
 });
 
 test.describe("isEmptyListItem", () => {
@@ -97,5 +126,30 @@ test.describe("isEmptyListItem", () => {
 
   test("'# heading' → false", async ({ notePage }) => {
     expect(await isEmptyListItem(notePage, "# heading")).toBe(false);
+  });
+
+  // ── Indented empty list items ─────────────────────
+  test("'  - ' → true (indented empty bullet)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  - ")).toBe(true);
+  });
+
+  test("'  * ' → true (indented empty bullet)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  * ")).toBe(true);
+  });
+
+  test("'  - [ ] ' → true (indented empty checkbox)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  - [ ] ")).toBe(true);
+  });
+
+  test("'  1. ' → true (indented empty ordered)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  1. ")).toBe(true);
+  });
+
+  test("'  - item' → false (indented with content)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  - item")).toBe(false);
+  });
+
+  test("'  - [ ] task' → false (indented checkbox with content)", async ({ notePage }) => {
+    expect(await isEmptyListItem(notePage, "  - [ ] task")).toBe(false);
   });
 });

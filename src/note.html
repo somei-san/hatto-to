@@ -858,10 +858,16 @@
    * Return the prefix to auto-insert on the next line, or null if
    * the line is not a list/quote that should be continued.
    */
+  function stripIndent(line) {
+    const indent = line.match(/^( *)/)[1];
+    return { indent, stripped: line.slice(indent.length) };
+  }
+
   function getAutoPrefix(lineText) {
+    const { indent, stripped } = stripIndent(lineText);
     for (const pat of LIST_PATTERNS) {
-      const m = lineText.match(pat.re);
-      if (m) return pat.prefix(m);
+      const m = stripped.match(pat.re);
+      if (m) return indent + pat.prefix(m);
     }
     return null;
   }
@@ -871,8 +877,9 @@
    * (i.e. prefix only, no content) that should be cancelled on Enter.
    */
   function isEmptyListItem(lineText) {
+    const { stripped } = stripIndent(lineText);
     for (const pat of LIST_PATTERNS) {
-      const m = lineText.match(pat.re);
+      const m = stripped.match(pat.re);
       if (!m) continue;
       const content = m[2];
       return !content.trim();
@@ -892,8 +899,9 @@
     const after = full.slice(pos);
     const lastNl = before.lastIndexOf('\n');
     const nextNl = after.indexOf('\n');
-    const atEnd = nextNl === 0 || (nextNl === -1 && pos === full.length);
-    return { text: before.slice(lastNl + 1), node, pos, atEnd };
+    const lineAfter = nextNl >= 0 ? after.slice(0, nextNl) : after;
+    const fullLine = before.slice(lastNl + 1) + lineAfter;
+    return { text: before.slice(lastNl + 1), fullLine, node, pos };
   }
 
   let autoInsertGuard = false;
@@ -901,23 +909,41 @@
     if (e.inputType !== 'insertParagraph' || autoInsertGuard) return;
 
     const cur = getCurrentLine();
-    if (!cur || !cur.atEnd) return;
+    if (!cur) return;
 
-    const prefix = getAutoPrefix(cur.text);
+    // Use fullLine for pattern matching (works at beginning/middle/end of line)
+    const prefix = getAutoPrefix(cur.fullLine);
     if (prefix === null) return;
 
     e.preventDefault();
     autoInsertGuard = true;
 
     try {
-      if (isEmptyListItem(cur.text)) {
+      if (isEmptyListItem(cur.fullLine)) {
+        // Empty list item → remove prefix and insert plain newline
         const sel = window.getSelection();
         const range = sel.getRangeAt(0);
-        range.setStart(cur.node, cur.pos - cur.text.length);
+        const lineStart = cur.pos - cur.text.length;
+        const lineEnd = Math.min(lineStart + cur.fullLine.length, cur.node.textContent.length);
+        range.setStart(cur.node, lineStart);
+        range.setEnd(cur.node, lineEnd);
         range.deleteContents();
         document.execCommand('insertText', false, '\n');
       } else {
-        document.execCommand('insertText', false, '\n' + prefix);
+        const afterCaret = cur.fullLine.slice(cur.text.length);
+        if (afterCaret.length > 0) {
+          // Select text after caret to end of line, then replace it
+          const sel = window.getSelection();
+          const range = sel.getRangeAt(0);
+          const lineEnd = cur.pos + afterCaret.length;
+          range.setEnd(cur.node, Math.min(lineEnd, cur.node.textContent.length));
+          sel.removeAllRanges();
+          sel.addRange(range);
+          const trimmed = afterCaret.replace(/^ /, '');
+          document.execCommand('insertText', false, '\n' + prefix + trimmed);
+        } else {
+          document.execCommand('insertText', false, '\n' + prefix);
+        }
       }
     } finally {
       autoInsertGuard = false;

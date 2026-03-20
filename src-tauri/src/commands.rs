@@ -228,7 +228,7 @@ pub(crate) fn bring_other_notes_to_front(
             .last_bring_to_front
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        if last.elapsed() < std::time::Duration::from_secs(1) {
+        if last.elapsed() < std::time::Duration::from_millis(500) {
             return;
         }
         *last = Instant::now();

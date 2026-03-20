@@ -152,3 +152,28 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
     expect(extractOrderNums(html)).toEqual(["1", "2", "3"]);
   });
 });
+
+test.describe("renderMarkdown — NBSP (\\u00A0) normalization", () => {
+  test("checkbox with NBSP: -\\u00A0[\\u00A0]\\u00A0task", async ({ notePage }) => {
+    const html = await render(notePage, "-\u00A0[\u00A0]\u00A0task");
+    expect(html).toContain('class="md-check"');
+    expect(html).toContain('type="checkbox"');
+    expect(html).not.toContain("checked");
+  });
+
+  test("bullet with NBSP: -\\u00A0item", async ({ notePage }) => {
+    const html = await render(notePage, "-\u00A0item");
+    expect(html).toContain('class="md-bullet"');
+  });
+
+  test("ordered list with NBSP: 1.\\u00A0item", async ({ notePage }) => {
+    const html = await render(notePage, "1.\u00A0item");
+    expect(html).toContain('class="md-ordered"');
+  });
+
+  test("mixed NBSP and regular space: -\\u00A0[\\u00A0] task", async ({ notePage }) => {
+    const html = await render(notePage, "-\u00A0[\u00A0] task");
+    expect(html).toContain('class="md-check"');
+    expect(html).toContain('type="checkbox"');
+  });
+});

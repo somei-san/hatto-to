@@ -619,7 +619,8 @@
 
   function renderMarkdown(text) {
     if (!text) return '<div class="md-placeholder">メモを入力…</div>';
-    const lines = text.split('\n');
+    // Normalize non-breaking spaces (contenteditable often inserts \u00A0)
+    const lines = text.replace(/\u00A0/g, ' ').split('\n');
     const result = [];
     let inCodeBlock = false;
     let codeLines = [];
@@ -1112,7 +1113,7 @@
 
   // ── Auto-Save Content ─────────────────────────────
   editor.addEventListener('input', () => {
-    rawContent = editor.innerText;
+    rawContent = editor.innerText.replace(/\u00A0/g, ' ');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       invoke('update_note_content', { id: noteId, content: rawContent });

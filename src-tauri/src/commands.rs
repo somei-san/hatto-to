@@ -80,7 +80,7 @@ fn confirm_delete_if_needed(app: &AppHandle, state: &AppState) -> bool {
     }
     app.dialog()
         .message("この付箋を削除しますか？")
-        .title("Hatto-to")
+        .title("貼っとーと")
         .buttons(MessageDialogButtons::OkCancelCustom("削除".into(), "キャンセル".into()))
         .blocking_show()
 }

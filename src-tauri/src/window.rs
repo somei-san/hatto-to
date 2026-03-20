@@ -58,7 +58,7 @@ pub(crate) fn open_settings_window(app: &AppHandle, tab: Option<&str>) {
         None => "settings.html".to_string(),
     };
     let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
-        .title("Hatto-to — 設定 / ヘルプ")
+        .title("貼っとーと — 設定 / ヘルプ")
         .inner_size(420.0, 520.0)
         .min_inner_size(380.0, 460.0)
         .resizable(true)

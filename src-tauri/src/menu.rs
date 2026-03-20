@@ -27,7 +27,7 @@ pub(crate) fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
 
     let app_submenu = Submenu::with_items(
         app,
-        "Hatto-to",
+        "貼っとーと",
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,

@@ -27,7 +27,7 @@ pub(crate) fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .icon_as_template(true)
         .menu(&menu)
-        .tooltip("Hatto-to")
+        .tooltip("貼っとーと")
         .on_menu_event(|app, event| match event.id().as_ref() {
             "tray_new_note" => {
                 let state: State<AppState> = app.state();

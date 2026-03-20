@@ -56,22 +56,14 @@ pub struct Settings {
     pub opacity: u32,
     #[serde(default)]
     pub edit_on_single_click: bool,
-    #[serde(default = "default_bring_all_to_front")]
+    #[serde(default = "default_true")]
     pub bring_all_to_front: bool,
-    #[serde(default = "default_show_pin_button")]
+    #[serde(default = "default_true")]
     pub show_pin_button: bool,
     #[serde(default = "default_true")]
     pub show_new_button: bool,
     #[serde(default = "default_true")]
     pub show_color_button: bool,
-}
-
-fn default_bring_all_to_front() -> bool {
-    true
-}
-
-fn default_show_pin_button() -> bool {
-    true
 }
 
 fn default_true() -> bool {
@@ -367,23 +359,25 @@ fn open_trash(app: AppHandle) {
 
 #[tauri::command]
 fn create_note(app: AppHandle, state: State<AppState>) -> Note {
-    let default_color = {
-        let settings = state.settings.lock().unwrap();
-        settings.default_color.clone()
-    };
+    create_note_with_window(&app, &state)
+}
+
+// ── Note Creation Helper ────────────────────────────────────
+
+/// Create a new note with offset positioning and open its window.
+/// Shared by create_note command, app menu, and tray menu.
+fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note {
+    let default_color = state.settings.lock().unwrap().default_color.clone();
     let note = Note::new(&default_color);
-    {
-        let mut notes = state.notes.lock().unwrap();
-        // Offset new note position so it doesn't stack exactly
-        let offset = (notes.len() as f64) * 30.0;
-        let mut n = note.clone();
-        n.x += offset;
-        n.y += offset;
-        open_note_window(&app, &n);
-        notes.push(n.clone());
-        save_notes(&notes);
-        n
-    }
+    let mut notes = state.notes.lock().unwrap();
+    let offset = (notes.len() as f64) * 30.0;
+    let mut n = note;
+    n.x += offset;
+    n.y += offset;
+    open_note_window(app, &n);
+    notes.push(n.clone());
+    save_notes(&notes);
+    n
 }
 
 // ── Window Management ───────────────────────────────────────
@@ -545,16 +539,7 @@ fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
         }
         "new_note" => {
             let state: State<AppState> = app.state();
-            let default_color = state.settings.lock().unwrap().default_color.clone();
-            let note = Note::new(&default_color);
-            let mut notes = state.notes.lock().unwrap();
-            let offset = (notes.len() as f64) * 30.0;
-            let mut n = note;
-            n.x += offset;
-            n.y += offset;
-            open_note_window(app, &n);
-            notes.push(n);
-            save_notes(&notes);
+            create_note_with_window(app, &state);
         }
         "open_trash" => {
             open_trash_window(app);
@@ -601,16 +586,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "tray_new_note" => {
                 let state: State<AppState> = app.state();
-                let default_color = state.settings.lock().unwrap().default_color.clone();
-                let note = Note::new(&default_color);
-                let mut notes = state.notes.lock().unwrap();
-                let offset = (notes.len() as f64) * 30.0;
-                let mut n = note;
-                n.x += offset;
-                n.y += offset;
-                open_note_window(app, &n);
-                notes.push(n);
-                save_notes(&notes);
+                create_note_with_window(app, &state);
             }
             "settings" => {
                 open_settings_window(app, None);
@@ -719,15 +695,10 @@ pub fn run() {
             if notes.is_empty() {
                 // Create a default note on first launch
                 drop(notes);
-                let default_color = {
-                    let state: State<AppState> = app.state();
-                    let color = state.settings.lock().unwrap().default_color.clone();
-                    color
-                };
+                let default_color = state.settings.lock().unwrap().default_color.clone();
                 let mut note = Note::new(&default_color);
                 note.content = String::from("# Hatto-toへようこそ！\n\n- ダブルクリックで編集、外クリックでプレビュー\n- **太字** や *斜体* が使えます\n- [x] チェックボックスも\n- [ ] クリックで切替\n\n> 右クリックでメニュー、⌘N で新しい付箋");
                 open_note_window(app.handle(), &note);
-                let state: State<AppState> = app.state();
                 let mut notes = state.notes.lock().unwrap();
                 notes.push(note);
                 save_notes(&notes);

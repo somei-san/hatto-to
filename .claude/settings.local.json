@@ -41,7 +41,8 @@
       "Bash(chmod:*)",
       "Bash(command grep:*)",
       "Bash(bash /Users/somei/Repos/hatto-to/.dojo/run_dojo.sh)",
-      "Bash(claude --version)"
+      "Bash(claude --version)",
+      "Bash(bash .dojo/run_dojo.sh)"
     ]
   }
 }

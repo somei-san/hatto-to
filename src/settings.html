@@ -153,7 +153,15 @@
     margin-top: 2px;
   }
 
-  /* ── Save Button ──────────────────────────────────── */
+  /* ── Save Button (sticky footer) ─────────────────── */
+  .save-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: var(--bg);
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--border);
+  }
   .save-btn {
     width: 100%;
     padding: 10px;
@@ -166,10 +174,14 @@
     cursor: pointer;
     font-family: inherit;
     transition: opacity 0.15s;
-    margin-top: 4px;
   }
   .save-btn:hover { opacity: 0.85; }
   .save-btn:active { opacity: 0.7; }
+  .save-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .save-btn:disabled:hover { opacity: 0.4; }
 
   /* ── Help: Shortcuts ──────────────────────────────── */
   .shortcut-table {
@@ -471,7 +483,7 @@
     </div>
   </div>
 
-  <button class="save-btn" id="save-btn">保存</button>
+
 </div>
 
 <!-- ── Help Panel ─────────────────────────────────── -->
@@ -535,6 +547,10 @@
 
 </div>
 
+<div class="save-footer" id="save-footer">
+  <button class="save-btn" id="save-btn" disabled>保存</button>
+</div>
+
 <script>
   const { invoke } = window.__TAURI__.core;
   const { emit, listen } = window.__TAURI__.event;
@@ -551,6 +567,41 @@
   let currentShowColor = true;
   let currentConfirmDelete = true;
 
+  // ── Change Detection ──────────────────────────────
+  let saved = {
+    color: currentColor, size: currentSize, zoom: currentZoom,
+    opacity: currentOpacity, singleClick: currentSingleClick,
+    bringAll: currentBringAll, showPin: currentShowPin,
+    showNew: currentShowNew, showColor: currentShowColor,
+    confirmDelete: currentConfirmDelete,
+  };
+  const saveBtn = document.getElementById('save-btn');
+  const saveFooter = document.getElementById('save-footer');
+
+  function checkDirty() {
+    const dirty = currentColor !== saved.color
+      || currentSize !== saved.size
+      || currentZoom !== saved.zoom
+      || currentOpacity !== saved.opacity
+      || currentSingleClick !== saved.singleClick
+      || currentBringAll !== saved.bringAll
+      || currentShowPin !== saved.showPin
+      || currentShowNew !== saved.showNew
+      || currentShowColor !== saved.showColor
+      || currentConfirmDelete !== saved.confirmDelete;
+    saveBtn.disabled = !dirty;
+  }
+
+  function snapshotSaved() {
+    saved = {
+      color: currentColor, size: currentSize, zoom: currentZoom,
+      opacity: currentOpacity, singleClick: currentSingleClick,
+      bringAll: currentBringAll, showPin: currentShowPin,
+      showNew: currentShowNew, showColor: currentShowColor,
+      confirmDelete: currentConfirmDelete,
+    };
+  }
+
   // ── Tabs ────────────────────────────────────────────
   function activateTab(tab) {
     document.querySelectorAll('.tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); t.setAttribute('tabindex', '-1'); });
@@ -559,6 +610,7 @@
     tab.setAttribute('aria-selected', 'true');
     tab.setAttribute('tabindex', '0');
     document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+    saveFooter.style.display = tab.dataset.tab === 'settings' ? '' : 'none';
   }
 
   document.querySelectorAll('.tab').forEach(tab => {
@@ -585,6 +637,7 @@
       dot.setAttribute('aria-checked', 'true');
       dot.setAttribute('tabindex', '0');
       currentColor = dot.dataset.color;
+      checkDirty();
     });
     dot.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dot.click(); }
@@ -608,6 +661,7 @@
       document.querySelectorAll('#font-size-picker .size-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentSize = parseInt(btn.dataset.size, 10);
+      checkDirty();
     });
   });
 
@@ -617,36 +671,43 @@
       document.querySelectorAll('#zoom-picker .size-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentZoom = parseInt(btn.dataset.zoom, 10);
+      checkDirty();
     });
   });
 
   // ── Save ─────────────────────────────────────────────
-  document.getElementById('save-btn').addEventListener('click', async () => {
-    await invoke('update_settings', {
-      defaultColor: currentColor,
-      fontSize: currentSize,
-      zoom: currentZoom,
-      opacity: currentOpacity,
-      editOnSingleClick: currentSingleClick,
-      bringAllToFront: currentBringAll,
-      showPinButton: currentShowPin,
-      showNewButton: currentShowNew,
-      showColorButton: currentShowColor,
-      confirmBeforeDelete: currentConfirmDelete,
-    });
-    emit('settings-changed', {
-      default_color: currentColor,
-      font_size: currentSize,
-      zoom: currentZoom,
-      opacity: currentOpacity,
-      edit_on_single_click: currentSingleClick,
-      bring_all_to_front: currentBringAll,
-      show_pin_button: currentShowPin,
-      show_new_button: currentShowNew,
-      show_color_button: currentShowColor,
-      confirm_before_delete: currentConfirmDelete,
-    });
-    getCurrentWebviewWindow().close();
+  saveBtn.addEventListener('click', async () => {
+    try {
+      await invoke('update_settings', {
+        defaultColor: currentColor,
+        fontSize: currentSize,
+        zoom: currentZoom,
+        opacity: currentOpacity,
+        editOnSingleClick: currentSingleClick,
+        bringAllToFront: currentBringAll,
+        showPinButton: currentShowPin,
+        showNewButton: currentShowNew,
+        showColorButton: currentShowColor,
+        confirmBeforeDelete: currentConfirmDelete,
+      });
+      emit('settings-changed', {
+        default_color: currentColor,
+        font_size: currentSize,
+        zoom: currentZoom,
+        opacity: currentOpacity,
+        edit_on_single_click: currentSingleClick,
+        bring_all_to_front: currentBringAll,
+        show_pin_button: currentShowPin,
+        show_new_button: currentShowNew,
+        show_color_button: currentShowColor,
+        confirm_before_delete: currentConfirmDelete,
+      });
+      snapshotSaved();
+      getCurrentWebviewWindow().close();
+    } catch (e) {
+      console.error('設定の保存に失敗しました:', e);
+      alert('設定の保存に失敗しました。\n' + e);
+    }
   });
 
   // ── Opacity Slider ────────────────────────────────────
@@ -656,42 +717,49 @@
   opacitySlider.addEventListener('input', () => {
     currentOpacity = parseInt(opacitySlider.value, 10);
     opacityValue.textContent = `${currentOpacity}%`;
+    checkDirty();
   });
 
   // ── Single Click Toggle ─────────────────────────────
   const singleClickToggle = document.getElementById('single-click-toggle');
   singleClickToggle.addEventListener('change', () => {
     currentSingleClick = singleClickToggle.checked;
+    checkDirty();
   });
 
   // ── Bring All Toggle ──────────────────────────────
   const bringAllToggle = document.getElementById('bring-all-toggle');
   bringAllToggle.addEventListener('change', () => {
     currentBringAll = bringAllToggle.checked;
+    checkDirty();
   });
 
   // ── Show Pin Toggle ──────────────────────────────
   const showPinToggle = document.getElementById('show-pin-toggle');
   showPinToggle.addEventListener('change', () => {
     currentShowPin = showPinToggle.checked;
+    checkDirty();
   });
 
   // ── Show New Toggle ──────────────────────────────
   const showNewToggle = document.getElementById('show-new-toggle');
   showNewToggle.addEventListener('change', () => {
     currentShowNew = showNewToggle.checked;
+    checkDirty();
   });
 
   // ── Show Color Toggle ──────────────────────────────
   const showColorToggle = document.getElementById('show-color-toggle');
   showColorToggle.addEventListener('change', () => {
     currentShowColor = showColorToggle.checked;
+    checkDirty();
   });
 
   // ── Confirm Delete Toggle ──────────────────────────────
   const confirmDeleteToggle = document.getElementById('confirm-delete-toggle');
   confirmDeleteToggle.addEventListener('change', () => {
     currentConfirmDelete = confirmDeleteToggle.checked;
+    checkDirty();
   });
 
   // ── Autostart Toggle ─────────────────────────────────
@@ -715,7 +783,10 @@
     currentSize  = s.font_size;
 
     document.querySelectorAll('#color-picker .color-dot').forEach(d => {
-      d.classList.toggle('active', d.dataset.color === currentColor);
+      const isActive = d.dataset.color === currentColor;
+      d.classList.toggle('active', isActive);
+      d.setAttribute('aria-checked', isActive ? 'true' : 'false');
+      d.setAttribute('tabindex', isActive ? '0' : '-1');
     });
 
     document.querySelectorAll('#font-size-picker .size-btn').forEach(b => {
@@ -750,6 +821,8 @@
     confirmDeleteToggle.checked = currentConfirmDelete;
 
     autostartToggle.checked = !!autostartEnabled;
+
+    snapshotSaved();
 
     // Open help tab if requested via query parameter
     const params = new URLSearchParams(window.location.search);

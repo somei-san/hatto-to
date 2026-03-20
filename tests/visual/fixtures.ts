@@ -16,10 +16,11 @@ const DEFAULT_SETTINGS = {
 
 // ── Note mock ──────────────────────────────────────────────
 
-async function injectNoteMock(
+export async function injectNoteMock(
   page: Page,
   noteOverrides: Record<string, unknown> = {},
   settingsOverrides: Record<string, unknown> = {},
+  options: { captureInvokes?: boolean } = {},
 ) {
   const note = {
     id: "test-note-id",
@@ -35,25 +36,35 @@ async function injectNoteMock(
   };
 
   await page.addInitScript((data) => {
+    const baseMock = async (cmd: string, args?: unknown) => {
+      switch (cmd) {
+        case "get_note":              return data.note;
+        case "get_settings":          return data.settings;
+        case "update_note_content":   return null;
+        case "update_note_color":     return null;
+        case "update_note_geometry":  return null;
+        case "update_note_zoom":      return null;
+        case "update_note_pinned":    return null;
+        case "update_settings":       return null;
+        case "delete_note":           return null;
+        case "create_note":           return null;
+        case "bring_other_notes_to_front": return null;
+        default:                      return null;
+      }
+    };
+
+    let invoke: (cmd: string, args?: unknown) => Promise<unknown> = baseMock;
+    if (data.captureInvokes) {
+      const calls: { cmd: string; args: unknown }[] = [];
+      (window as any).__captured_invokes = calls;
+      invoke = async (cmd: string, args?: unknown) => {
+        calls.push({ cmd, args });
+        return baseMock(cmd, args);
+      };
+    }
+
     (window as any).__TAURI__ = {
-      core: {
-        invoke: async (cmd: string) => {
-          switch (cmd) {
-            case "get_note":              return data.note;
-            case "get_settings":          return data.settings;
-            case "update_note_content":   return null;
-            case "update_note_color":     return null;
-            case "update_note_geometry":  return null;
-            case "update_note_zoom":      return null;
-            case "update_note_pinned":    return null;
-            case "update_settings":       return null;
-            case "delete_note":           return null;
-            case "create_note":           return null;
-            case "bring_other_notes_to_front": return null;
-            default:                      return null;
-          }
-        },
-      },
+      core: { invoke },
       event: {
         listen: async () => () => {},
       },
@@ -70,7 +81,7 @@ async function injectNoteMock(
         }),
       },
     };
-  }, { note, settings: { ...DEFAULT_SETTINGS, ...settingsOverrides } });
+  }, { note, settings: { ...DEFAULT_SETTINGS, ...settingsOverrides }, captureInvokes: !!options.captureInvokes });
 }
 
 // ── Settings mock ──────────────────────────────────────────

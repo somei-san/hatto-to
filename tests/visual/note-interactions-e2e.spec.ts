@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, injectNoteMock } from "./fixtures";
 
 // ── 1. 編集モード切替 ────────────────────────────────────
 
@@ -192,5 +192,202 @@ test.describe("ペースト（URLリンク変換）", () => {
     // エディタ内容がmarkdownリンク形式になっていることを確認
     const content = await page.locator(".editor").innerText();
     expect(content).toBe("[hello](https://example.com)");
+  });
+});
+
+// ── 6. コンテキストメニュー：ズーム ─────────────────────────
+
+test.describe("コンテキストメニュー：ズーム", () => {
+  test("ズームイン → body.style.zoom が増加する", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", zoom: 100 });
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+    await page.click('[data-action="zoomIn"]');
+
+    const zoom = await page.evaluate(() => document.body.style.zoom);
+    expect(parseFloat(zoom)).toBeGreaterThan(1);
+  });
+
+  test("ズームアウト → body.style.zoom が減少する", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", zoom: 100 });
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+    await page.click('[data-action="zoomOut"]');
+
+    const zoom = await page.evaluate(() => document.body.style.zoom);
+    expect(parseFloat(zoom)).toBeLessThan(1);
+  });
+
+  test("ズームリセット → body.style.zoom が 1 に戻る", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", zoom: 100 });
+
+    // まずズームインして1より大きくする
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+    await page.click('[data-action="zoomIn"]');
+
+    const zoomedIn = await page.evaluate(() => document.body.style.zoom);
+    expect(parseFloat(zoomedIn)).toBeGreaterThan(1);
+
+    // ズームリセット
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+    await page.click('[data-action="zoomReset"]');
+
+    const zoom = await page.evaluate(() => document.body.style.zoom);
+    expect(parseFloat(zoom)).toBe(1);
+  });
+});
+
+// ── 7. コンテキストメニュー：ピン留めトグル ──────────────────
+
+test.describe("コンテキストメニュー：ピン留めトグル", () => {
+  test("ピン留め → #btn-pin に .active が付き、ラベルが切り替わる", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト" });
+    await expect(page.locator("#btn-pin")).not.toHaveClass(/active/);
+
+    // 編集モード → コンテキストメニュー → ピン留め
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+
+    // ラベルが「ピン留め」であること
+    await expect(page.locator("#ctx-pin-label")).toHaveText("ピン留め");
+    await page.click('[data-action="togglePin"]');
+
+    await expect(page.locator("#btn-pin")).toHaveClass(/active/);
+
+    // 再度コンテキストメニューを開くとラベルが「ピン留め解除」
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator("#ctx-pin-label")).toHaveText("ピン留め解除");
+  });
+
+  test("ピン留め解除 → #btn-pin から .active が外れる", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", pinned: true });
+    await expect(page.locator("#btn-pin")).toHaveClass(/active/);
+
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+
+    await expect(page.locator("#ctx-pin-label")).toHaveText("ピン留め解除");
+    await page.click('[data-action="togglePin"]');
+
+    await expect(page.locator("#btn-pin")).not.toHaveClass(/active/);
+  });
+});
+
+// ── 8. コンテキストメニュー：カラー変更 ──────────────────────
+
+test.describe("コンテキストメニュー：カラー変更", () => {
+  test("コンテキストメニューから色を変更 → --bg CSS変数が変わる", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", color: "yellow" });
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+
+    await page.click(".editor", { button: "right" });
+    await expect(page.locator(".context-menu.open")).toBeVisible();
+
+    // blueを選択
+    await page.click('.cm-color-dot[data-color="blue"]');
+
+    const bg = await page.evaluate(() => {
+      return document.querySelector(".note")!.style.getPropertyValue("--bg");
+    });
+    expect(bg).toBe("var(--blue)");
+  });
+});
+
+// ── 9. ピン留めボタン ────────────────────────────────────────
+
+test.describe("ピン留めボタン", () => {
+  test("#btn-pin をクリック → .active が付く", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト" });
+    await expect(page.locator("#btn-pin")).not.toHaveClass(/active/);
+
+    await page.click("#btn-pin");
+    await expect(page.locator("#btn-pin")).toHaveClass(/active/);
+  });
+
+  test("再度クリック → .active が外れる", async ({ openNote }) => {
+    const page = await openNote({ content: "テスト", pinned: true });
+    await expect(page.locator("#btn-pin")).toHaveClass(/active/);
+
+    await page.click("#btn-pin");
+    await expect(page.locator("#btn-pin")).not.toHaveClass(/active/);
+  });
+});
+
+// ── 10. ボタン表示/非表示設定 ────────────────────────────────
+
+test.describe("ボタン表示/非表示設定", () => {
+  test("show_pin_button: false → #btn-pin が非表示", async ({ openNote }) => {
+    const page = await openNote({}, { show_pin_button: false });
+    await expect(page.locator("#btn-pin")).toBeHidden();
+  });
+
+  test("show_new_button: false → #btn-new が非表示", async ({ openNote }) => {
+    const page = await openNote({}, { show_new_button: false });
+    await expect(page.locator("#btn-new")).toBeHidden();
+  });
+
+  test("show_color_button: false → #btn-color が非表示", async ({ openNote }) => {
+    const page = await openNote({}, { show_color_button: false });
+    await expect(page.locator("#btn-color")).toBeHidden();
+  });
+});
+
+// ── 11. 自動保存（デバウンス） ───────────────────────────────
+
+test.describe("自動保存", () => {
+  test("テキスト入力 → 300ms後にinvokeが呼ばれる", async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 300, height: 350 } });
+    const page = await ctx.newPage();
+
+    // 共有モックを注入（invokeキャプチャ内蔵）してページ遷移
+    await injectNoteMock(page, { content: "" }, {}, { captureInvokes: true });
+    await page.goto("/note.html?id=test-note-id");
+    await page.waitForLoadState("networkidle");
+
+    // 編集モードにする
+    await page.click(".markdown-view");
+    await expect(page.locator(".editor")).toBeVisible();
+
+    // キャプチャをリセット
+    await page.evaluate(() => { (window as any).__captured_invokes.length = 0; });
+
+    // 単一文字入力後すぐにチェック（タイミング信頼性のため1文字のみ）
+    await page.locator(".editor").press("h");
+
+    // 入力直後はデバウンス中なのでまだ呼ばれない
+    const callsBefore = await page.evaluate(() =>
+      (window as any).__captured_invokes.filter((c: any) => c.cmd === "update_note_content")
+    );
+    expect(callsBefore).toHaveLength(0);
+
+    // 条件ベースで待機（デバウンス完了を検知）
+    await expect.poll(() =>
+      page.evaluate(() =>
+        (window as any).__captured_invokes.filter((c: any) => c.cmd === "update_note_content").length
+      ),
+      { timeout: 5000 },
+    ).toBe(1);
+
+    const callsAfter = await page.evaluate(() =>
+      (window as any).__captured_invokes.filter((c: any) => c.cmd === "update_note_content")
+    );
+    expect((callsAfter[0] as any).args.content).toContain("h");
+
+    await ctx.close();
   });
 });

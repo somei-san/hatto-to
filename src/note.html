@@ -1137,20 +1137,16 @@
     });
   });
 
-  // Handle events from native context menu
-  listen('ctx-color-change', (event) => {
-    const color = event.payload;
-    applyColor(color);
-    invoke('update_note_color', { id: noteId, color });
-  });
-
-  // ── Expose for testing ──────────────────────────────
+  // ── Expose for testing & native context menu eval() ─
   window.htmlToMarkdown = htmlToMarkdown;
   window.hasMarkdownSyntax = hasMarkdownSyntax;
   window.getAutoPrefix = getAutoPrefix;
   window.isEmptyListItem = isEmptyListItem;
   window.renderMarkdown = renderMarkdown;
   window.CHECKBOX_RE = CHECKBOX_RE;
+  window.applyColor = applyColor;
+  window.changeZoom = changeZoom;
+  window.resetZoom = resetZoom;
 
   // ── Bring all notes to front on focus ──────────
   let bringTimer = null;

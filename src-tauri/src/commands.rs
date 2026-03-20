@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use tauri::image::Image;
 use tauri::menu::{ContextMenu, IconMenuItem, Menu, MenuItem, NativeIcon, PredefinedMenuItem};
-use tauri::{AppHandle, Emitter, EventTarget, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::model::{AppState, Note, Settings};
 use crate::persistence::{enforce_trash_limit, save_notes, save_settings, save_trash};
@@ -318,7 +318,7 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
     }
     let win_label = format!("note-{}", note_id);
 
-    let target = EventTarget::Webview { label: win_label.clone() };
+    let win = app.get_webview_window(&win_label);
 
     match event_id {
         "ctx_new" => {
@@ -336,25 +336,41 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
                     save_trash(&trash);
                 }
             }
-            if let Some(win) = app.get_webview_window(&win_label) {
-                let _ = win.close();
+            if let Some(w) = &win {
+                let _ = w.close();
             }
         }
         "ctx_trash" => {
             open_trash_window(app);
         }
         "ctx_zoom_in" => {
-            let _ = app.emit_to(target, "zoom", "in");
+            if let Some(w) = &win {
+                let _ = w.eval("changeZoom(+1)");
+            }
         }
         "ctx_zoom_out" => {
-            let _ = app.emit_to(target, "zoom", "out");
+            if let Some(w) = &win {
+                let _ = w.eval("changeZoom(-1)");
+            }
         }
         "ctx_zoom_reset" => {
-            let _ = app.emit_to(target, "zoom", "reset");
+            if let Some(w) = &win {
+                let _ = w.eval("resetZoom()");
+            }
         }
         _ if event_id.starts_with("ctx_color_") => {
             let color = event_id.trim_start_matches("ctx_color_");
-            let _ = app.emit_to(target, "ctx-color-change", color);
+            let valid = ["yellow", "blue", "green", "pink", "purple", "gray"];
+            if !valid.contains(&color) { return; }
+            let mut notes = state.notes.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(note) = notes.iter_mut().find(|n| n.id == note_id) {
+                note.color = color.to_string();
+                save_notes(&notes);
+            }
+            drop(notes);
+            if let Some(w) = &win {
+                let _ = w.eval(format!("applyColor('{color}')"));
+            }
         }
         _ => {}
     }

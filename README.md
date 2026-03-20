@@ -1,7 +1,16 @@
-# Hatto-to — macOS Stickies風 付箋アプリ
+# 🐻 貼っとーと (Hatto-to)
+デスクトップにぺたぺた貼れる、熊の手つき付箋アプリ。
+軽量・ネイティブ・macOS Stickies ライクな操作感。
 
-「貼っとーと」— Post-it にインスパイアされた、Tauri v2 + Rust 製のネイティブ付箋アプリ。
-付箋1枚ごとに独立ウィンドウが開き、macOS Stickies のような使い心地。
+## こだわりポイント
+macOS Stickiesとの重要な違い
+
+- markdown対応
+- 一つの付箋をクリックしたら全付箋が前面に出てくる
+  - ランチャー（Alfredなど）で開く、Mission Controlで開くなどした際に便利
+- ゴミ箱からの復元ができる
+- シュッと使いたい機能へのアクセスが良い
+- 多少はマシな見た目
 
 ## 機能
 
@@ -26,37 +35,6 @@
 brew install --cask somei-san/tap/hatto-to
 ```
 
-### ソースからビルド
-
-前提条件:
-- [Rust](https://rustup.rs/) (1.77+)
-- Xcode Command Line Tools (`xcode-select --install`)
-
-```bash
-# Tauri CLI をインストール（初回のみ）
-cargo install tauri-cli --version "^2"
-
-# 開発モードで起動
-cargo tauri dev
-
-# プロダクションビルド（DMG 生成）
-cargo tauri build
-```
-
-## 操作方法
-
-| 操作 | 方法 |
-|------|------|
-| ウィンドウ移動 | タイトルバーをドラッグ |
-| 新規付箋 | `+` ボタン / トレイメニュー / ⌘N |
-| 色変更 | `●` ボタン → 色を選択 |
-| 削除 | `×` ボタン |
-| リサイズ | ウィンドウ端をドラッグ |
-| 編集モード | ダブルクリック（Markdown付箋）/ シングルクリック（プレーンテキスト） |
-| プレビュー | エディタからフォーカスを外す |
-| ゴミ箱 | File → Trash... (⌘⇧T) |
-| 右クリックメニュー | 右クリック |
-
 ## データ保存先
 
 ```
@@ -66,39 +44,6 @@ cargo tauri build
 └── trash.json      # ゴミ箱（最大20件）
 ```
 
-## テスト
+### 開発者向け
 
-```bash
-# 初回セットアップ
-npm install
-npx playwright install chromium
-
-# テスト実行（VRT + UT 全100件）
-npm test
-```
-
-## 技術スタック
-
-- **Backend:** Rust + Tauri v2
-- **Frontend:** Vanilla HTML/CSS/JS（ビルドツール不要）
-- **永続化:** JSON ファイル（serde_json）
-- **テスト:** Playwright（VRT + UT）
-- **ID生成:** uuid v4
-
-## リリース手順
-
-```bash
-# バージョンを指定してリリース（clippy → テスト → ビルド → GitHub Release 作成）
-./scripts/release.sh 0.2.0
-
-# バージョン省略時は tauri.conf.json の現在のバージョンを使用
-./scripts/release.sh
-```
-
-## アイコンについて
-
-プロダクションビルドの際は正式な `.icns` ファイルが必要:
-
-```bash
-cargo tauri icon path/to/your-icon.png
-```
+[開発ガイド](DEVELOPMENT.md) を参照。

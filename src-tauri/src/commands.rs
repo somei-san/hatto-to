@@ -174,6 +174,7 @@ pub(crate) fn get_settings(state: State<AppState>) -> Settings {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn update_settings(
     default_color: String,
     font_size: u32,

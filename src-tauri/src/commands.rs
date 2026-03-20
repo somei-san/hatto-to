@@ -318,7 +318,7 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
     }
     let win_label = format!("note-{}", note_id);
 
-    let target = EventTarget::WebviewWindow { label: win_label.clone() };
+    let target = EventTarget::Webview { label: win_label.clone() };
 
     match event_id {
         "ctx_new" => {

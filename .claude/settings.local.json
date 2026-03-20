@@ -38,7 +38,10 @@
       "Bash(npm test:*)",
       "Bash(grep -l -i \"homebrew\\\\|tap\\\\|cask\" .github/workflows/*.yml)",
       "Bash(gh api:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(command grep:*)",
+      "Bash(bash /Users/somei/Repos/hatto-to/.dojo/run_dojo.sh)",
+      "Bash(claude --version)"
     ]
   }
 }

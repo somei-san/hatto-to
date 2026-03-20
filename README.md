@@ -2,6 +2,10 @@
 デスクトップにぺたぺた貼れる、熊の手つき付箋アプリ。
 軽量・ネイティブ・macOS Stickies ライクな操作感。
 
+<p align="center">
+  <img src="assets/hero.svg" alt="貼っとーと スクリーンショット" width="600" />
+</p>
+
 ## こだわりポイント
 macOS Stickiesとの重要な違い
 

@@ -1144,6 +1144,7 @@
     e.preventDefault();
     invoke('show_context_menu', {
       id: noteId,
+      isPinned: pinBtn.classList.contains('active'),
       currentColor: currentColor,
     });
   });
@@ -1158,6 +1159,7 @@
   window.applyColor = applyColor;
   window.changeZoom = changeZoom;
   window.resetZoom = resetZoom;
+  window.togglePin = togglePin;
 
   // ── Bring all notes to front on focus ──────────
   let bringTimer = null;

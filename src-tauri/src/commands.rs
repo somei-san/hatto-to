@@ -233,6 +233,7 @@ pub(crate) fn bring_other_notes_to_front(caller_id: String, app: AppHandle, stat
 #[tauri::command]
 pub(crate) fn show_context_menu(
     id: String,
+    is_pinned: bool,
     current_color: String,
     app: AppHandle,
     state: State<AppState>,
@@ -293,10 +294,11 @@ pub(crate) fn show_context_menu(
             .collect();
 
         // Build all items with let bindings to satisfy lifetimes
-        let cut = PredefinedMenuItem::cut(&app, None)?;
         let copy = PredefinedMenuItem::copy(&app, None)?;
         let paste = PredefinedMenuItem::paste(&app, None)?;
-        let sep1 = PredefinedMenuItem::separator(&app)?;
+        let sep0 = PredefinedMenuItem::separator(&app)?;
+        let pin_label = if is_pinned { "ピン留め解除" } else { "ピン留め" };
+        let pin = MenuItem::with_id(&app, "ctx_pin", pin_label, true, None::<&str>)?;
         let new_note = IconMenuItem::with_id_and_native_icon(
             &app, "ctx_new", "新しい付箋を作成", true, Some(NativeIcon::Add), Some("CmdOrCtrl+N"),
         )?;
@@ -306,18 +308,25 @@ pub(crate) fn show_context_menu(
         let trash = IconMenuItem::with_id_and_native_icon(
             &app, "ctx_trash", "ゴミ箱を開く", true, Some(NativeIcon::TrashEmpty), Some("CmdOrCtrl+Shift+T"),
         )?;
-        let sep2 = PredefinedMenuItem::separator(&app)?;
+        let sep1 = PredefinedMenuItem::separator(&app)?;
+        let sep1b = PredefinedMenuItem::separator(&app)?;
         let zoom_in = MenuItem::with_id(&app, "ctx_zoom_in", "ズームイン", true, Some("CmdOrCtrl+="))?;
         let zoom_out = MenuItem::with_id(&app, "ctx_zoom_out", "ズームアウト", true, Some("CmdOrCtrl+-"))?;
         let zoom_reset = MenuItem::with_id(&app, "ctx_zoom_reset", "ズームリセット", true, Some("CmdOrCtrl+0"))?;
+        let sep2 = PredefinedMenuItem::separator(&app)?;
+        let settings = MenuItem::with_id(&app, "ctx_settings", "設定を開く", true, Some("CmdOrCtrl+,"))?;
         let sep3 = PredefinedMenuItem::separator(&app)?;
 
         let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![
-            &cut, &copy, &paste,
+            &copy, &paste,
+            &sep0,
+            &pin,
             &sep1,
             &new_note, &delete, &trash,
-            &sep2,
+            &sep1b,
             &zoom_in, &zoom_out, &zoom_reset,
+            &sep2,
+            &settings,
             &sep3,
         ];
         for ci in &color_items {
@@ -350,6 +359,11 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
     let win = app.get_webview_window(&win_label);
 
     match event_id {
+        "ctx_pin" => {
+            if let Some(w) = &win {
+                let _ = w.eval("togglePin()");
+            }
+        }
         "ctx_new" => {
             create_note_with_window(app, &state);
         }
@@ -360,6 +374,9 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
         }
         "ctx_trash" => {
             open_trash_window(app);
+        }
+        "ctx_settings" => {
+            open_settings_window(app, None);
         }
         "ctx_zoom_in" => {
             if let Some(w) = &win {

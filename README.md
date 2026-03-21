@@ -55,3 +55,7 @@ brew install --cask somei-san/tap/hatto-to
 ### 開発者向け
 
 [開発ガイド](DEVELOPMENT.md) を参照。
+
+## 解説
+
+「貼っとっと」とは熊本弁で「貼ってるよ」という意味です

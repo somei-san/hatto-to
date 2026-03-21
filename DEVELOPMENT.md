@@ -24,8 +24,11 @@ cargo tauri build
 npm install
 npx playwright install chromium
 
-# テスト実行（VRT + UT 全100件）
+# テスト実行（VRT + UT + E2E）
 npm test
+
+# スナップショット更新（UI 変更後）
+npm run test:update
 ```
 
 ## 技術スタック

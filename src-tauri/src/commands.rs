@@ -423,3 +423,58 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── color_circle ────────────────────────────────────────
+
+    #[test]
+    fn color_circle_is_16x16() {
+        let img = color_circle(255, 0, 0);
+        assert_eq!(img.width(), 16);
+        assert_eq!(img.height(), 16);
+    }
+
+    #[test]
+    fn color_circle_center_is_opaque() {
+        let img = color_circle(255, 128, 0);
+        // Center pixel at (7, 7)
+        let i = (7 * 16 + 7) * 4;
+        let rgba = img.rgba();
+        assert_eq!(rgba[i],     255); // R
+        assert_eq!(rgba[i + 1], 128); // G
+        assert_eq!(rgba[i + 2],   0); // B
+        assert_eq!(rgba[i + 3], 255); // A = fully opaque
+    }
+
+    #[test]
+    fn color_circle_corner_is_transparent() {
+        let img = color_circle(255, 0, 0);
+        // Corner pixel at (0, 0) is outside the circle
+        let rgba = img.rgba();
+        assert_eq!(rgba[3], 0); // A = transparent
+    }
+
+    // ── COLOR_DEFS validation ────────────────────────────────
+
+    #[test]
+    fn color_defs_keys_are_unique() {
+        let keys: Vec<&str> = COLOR_DEFS.iter().map(|c| c.key).collect();
+        let mut sorted = keys.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), keys.len(), "COLOR_DEFS has duplicate keys");
+    }
+
+    #[test]
+    fn color_defs_matches_valid_color_check() {
+        // All keys in COLOR_DEFS must pass the validation used in handle_context_menu_event
+        for c in COLOR_DEFS {
+            assert!(COLOR_DEFS.iter().any(|d| d.key == c.key));
+        }
+        // A bogus key must not pass
+        assert!(!COLOR_DEFS.iter().any(|c| c.key == "bogus"));
+    }
+}

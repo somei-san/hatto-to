@@ -445,7 +445,10 @@
   // ── Apply Color Theme ─────────────────────────────
   let currentColor = 'yellow';
 
+  const VALID_COLORS = ['yellow','blue','green','pink','purple','gray'];
+
   function applyColor(color) {
+    if (!VALID_COLORS.includes(color)) color = 'yellow';
     currentColor = color;
     noteEl.style.setProperty('--bg',  `var(--${color})`);
     noteEl.style.setProperty('--bar', `var(--${color}-bar)`);

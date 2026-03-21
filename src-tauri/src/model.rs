@@ -16,6 +16,20 @@ impl<T> RecoverMutex<T> for Mutex<T> {
     }
 }
 
+// ── Color Resolution ─────────────────────────────────────────
+
+/// Resolve "random" to a concrete color key; pass through valid keys unchanged.
+pub(crate) fn resolve_color(color: &str) -> String {
+    if color == "random" {
+        use rand::seq::SliceRandom;
+        let keys: Vec<&str> = COLOR_DEFS.iter().map(|c| c.key).collect();
+        let mut rng = rand::thread_rng();
+        keys.choose(&mut rng).unwrap().to_string()
+    } else {
+        color.to_string()
+    }
+}
+
 // ── Color Definitions ────────────────────────────────────────
 
 pub(crate) struct ColorDef {

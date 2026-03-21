@@ -40,6 +40,11 @@ macOS Stickiesとの重要な違い
 brew install --cask somei-san/tap/hatto-to
 ```
 
+> **Note:** 現在コード署名がないため、初回起動前に以下を実行してください：
+> ```bash
+> xattr -cr /Applications/Hatto-to.app
+> ```
+
 ## データ保存先
 
 ```

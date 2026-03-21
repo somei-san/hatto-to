@@ -5,7 +5,7 @@ use tauri::menu::{ContextMenu, IconMenuItem, Menu, MenuItem, NativeIcon, Predefi
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-use crate::model::{AppState, Note, RecoverMutex, Settings, TRASH_MAX, COLOR_DEFS};
+use crate::model::{AppState, Note, RecoverMutex, Settings, COLOR_DEFS, TRASH_MAX};
 use crate::persistence::{enforce_trash_limit, save_notes, save_settings, save_trash};
 use crate::window::{
     create_note_with_window, open_note_window, open_settings_window, open_trash_window,
@@ -288,7 +288,11 @@ fn build_context_menu(
     let color_items: Vec<IconMenuItem<tauri::Wry>> = COLOR_DEFS
         .iter()
         .map(|c| {
-            let check = if c.key == current_color { "✓ " } else { "    " };
+            let check = if c.key == current_color {
+                "✓ "
+            } else {
+                "    "
+            };
             IconMenuItem::with_id(
                 app,
                 format!("ctx_color_{}", c.key),
@@ -304,31 +308,73 @@ fn build_context_menu(
     let copy = PredefinedMenuItem::copy(app, None)?;
     let paste = PredefinedMenuItem::paste(app, None)?;
     let sep0 = PredefinedMenuItem::separator(app)?;
-    let pin_label = if is_pinned { "ピン留め解除" } else { "ピン留め" };
+    let pin_label = if is_pinned {
+        "ピン留め解除"
+    } else {
+        "ピン留め"
+    };
     let pin = MenuItem::with_id(app, "ctx_pin", pin_label, true, None::<&str>)?;
     let new_note = IconMenuItem::with_id_and_native_icon(
-        app, "ctx_new", "新しい付箋を作成", true, Some(NativeIcon::Add), Some("CmdOrCtrl+N"),
+        app,
+        "ctx_new",
+        "新しい付箋を作成",
+        true,
+        Some(NativeIcon::Add),
+        Some("CmdOrCtrl+N"),
     )?;
     let delete = IconMenuItem::with_id_and_native_icon(
-        app, "ctx_delete", "この付箋を削除", true, Some(NativeIcon::Remove), None::<&str>,
+        app,
+        "ctx_delete",
+        "この付箋を削除",
+        true,
+        Some(NativeIcon::Remove),
+        None::<&str>,
     )?;
     let trash = IconMenuItem::with_id_and_native_icon(
-        app, "ctx_trash", "ゴミ箱を開く", true, Some(NativeIcon::TrashEmpty), Some("CmdOrCtrl+Shift+T"),
+        app,
+        "ctx_trash",
+        "ゴミ箱を開く",
+        true,
+        Some(NativeIcon::TrashEmpty),
+        Some("CmdOrCtrl+Shift+T"),
     )?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep1b = PredefinedMenuItem::separator(app)?;
     let zoom_in = MenuItem::with_id(app, "ctx_zoom_in", "ズームイン", true, Some("CmdOrCtrl+="))?;
-    let zoom_out = MenuItem::with_id(app, "ctx_zoom_out", "ズームアウト", true, Some("CmdOrCtrl+-"))?;
-    let zoom_reset = MenuItem::with_id(app, "ctx_zoom_reset", "ズームリセット", true, Some("CmdOrCtrl+0"))?;
+    let zoom_out = MenuItem::with_id(
+        app,
+        "ctx_zoom_out",
+        "ズームアウト",
+        true,
+        Some("CmdOrCtrl+-"),
+    )?;
+    let zoom_reset = MenuItem::with_id(
+        app,
+        "ctx_zoom_reset",
+        "ズームリセット",
+        true,
+        Some("CmdOrCtrl+0"),
+    )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let settings = MenuItem::with_id(app, "ctx_settings", "設定を開く", true, Some("CmdOrCtrl+,"))?;
     let sep3 = PredefinedMenuItem::separator(app)?;
 
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![
-        &copy, &paste, &sep0, &pin, &sep1,
-        &new_note, &delete, &trash, &sep1b,
-        &zoom_in, &zoom_out, &zoom_reset, &sep2,
-        &settings, &sep3,
+        &copy,
+        &paste,
+        &sep0,
+        &pin,
+        &sep1,
+        &new_note,
+        &delete,
+        &trash,
+        &sep1b,
+        &zoom_in,
+        &zoom_out,
+        &zoom_reset,
+        &sep2,
+        &settings,
+        &sep3,
     ];
     for ci in &color_items {
         items.push(ci as &dyn tauri::menu::IsMenuItem<tauri::Wry>);
@@ -445,9 +491,9 @@ mod tests {
         // Center pixel at (7, 7)
         let i = (7 * 16 + 7) * 4;
         let rgba = img.rgba();
-        assert_eq!(rgba[i],     255); // R
+        assert_eq!(rgba[i], 255); // R
         assert_eq!(rgba[i + 1], 128); // G
-        assert_eq!(rgba[i + 2],   0); // B
+        assert_eq!(rgba[i + 2], 0); // B
         assert_eq!(rgba[i + 3], 255); // A = fully opaque
     }
 

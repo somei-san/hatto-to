@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
-use crate::model::{AppState, Note, RecoverMutex, resolve_color};
+use crate::model::{resolve_color, AppState, Note, RecoverMutex};
 use crate::persistence::save_notes;
 
 // ── Note Creation Helper ────────────────────────────────────

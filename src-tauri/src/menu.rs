@@ -59,7 +59,13 @@ pub(crate) fn setup_app_menu(app: &AppHandle) -> tauri::Result<()> {
         &[
             &new_note_item,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "close_window", "Close Window", true, Some("CmdOrCtrl+W"))?,
+            &MenuItem::with_id(
+                app,
+                "close_window",
+                "Close Window",
+                true,
+                Some("CmdOrCtrl+W"),
+            )?,
             &PredefinedMenuItem::separator(app)?,
             &trash_item,
         ],

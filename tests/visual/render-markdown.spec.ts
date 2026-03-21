@@ -153,6 +153,50 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
   });
 });
 
+test.describe("renderMarkdown — edge cases", () => {
+  test("_text_ does NOT render as italic (only *text* is supported)", async ({ notePage }) => {
+    const html = await render(notePage, "_text_");
+    expect(html).not.toContain("<em>");
+    expect(html).toContain("_text_");
+  });
+
+  test("bold and italic coexist: **bold** and *italic*", async ({ notePage }) => {
+    const html = await render(notePage, "**bold** and *italic*");
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<em>italic</em>");
+  });
+
+  test("code block protects markdown symbols inside", async ({ notePage }) => {
+    const html = await render(notePage, "```\n**not bold**\n```");
+    expect(html).not.toContain("<strong>");
+    expect(html).toContain("**not bold**");
+  });
+
+  test("unclosed code block renders gracefully", async ({ notePage }) => {
+    const html = await render(notePage, "```\nsome code");
+    expect(html).toContain('class="md-codeblock"');
+    expect(html).toContain("some code");
+  });
+
+  test("nested checkbox renders as checkbox", async ({ notePage }) => {
+    const html = await render(notePage, "- [ ] parent\n  - [ ] child");
+    const checkboxCount = (html.match(/type="checkbox"/g) || []).length;
+    expect(checkboxCount).toBe(2);
+  });
+
+  test("javascript: link is NOT rendered as anchor", async ({ notePage }) => {
+    // renderMarkdown only allows https?:// URLs — javascript: never becomes <a href>
+    const html = await render(notePage, "[xss](javascript:alert(1))");
+    expect(html).not.toContain('<a href=');
+  });
+
+  test("html special chars are escaped in output", async ({ notePage }) => {
+    const html = await render(notePage, "<script>alert(1)</script>");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});
+
 test.describe("renderMarkdown — NBSP (\\u00A0) normalization", () => {
   test("checkbox with NBSP: -\\u00A0[\\u00A0]\\u00A0task", async ({ notePage }) => {
     const html = await render(notePage, "-\u00A0[\u00A0]\u00A0task");

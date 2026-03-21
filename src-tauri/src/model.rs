@@ -16,6 +16,25 @@ impl<T> RecoverMutex<T> for Mutex<T> {
     }
 }
 
+// ── Color Definitions ────────────────────────────────────────
+
+pub(crate) struct ColorDef {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+pub(crate) const COLOR_DEFS: &[ColorDef] = &[
+    ColorDef { key: "yellow", label: "イエロー", r: 0xF9, g: 0xE9, b: 0x7A },
+    ColorDef { key: "blue",   label: "ブルー",   r: 0x7F, g: 0xB3, b: 0xE0 },
+    ColorDef { key: "green",  label: "グリーン", r: 0x8C, g: 0xC9, b: 0x8F },
+    ColorDef { key: "pink",   label: "ピンク",   r: 0xE8, g: 0x8F, b: 0xAB },
+    ColorDef { key: "purple", label: "パープル", r: 0xC4, g: 0x8D, b: 0xD0 },
+    ColorDef { key: "gray",   label: "グレー",   r: 0xB8, g: 0xB8, b: 0xB8 },
+];
+
 // ── Data Model ──────────────────────────────────────────────
 
 pub(crate) const TRASH_MAX: usize = 200;

@@ -5,7 +5,7 @@ use tauri::menu::{ContextMenu, IconMenuItem, Menu, MenuItem, NativeIcon, Predefi
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 
-use crate::model::{AppState, Note, RecoverMutex, Settings, TRASH_MAX};
+use crate::model::{AppState, Note, RecoverMutex, Settings, TRASH_MAX, COLOR_DEFS};
 use crate::persistence::{enforce_trash_limit, save_notes, save_settings, save_trash};
 use crate::window::{
     create_note_with_window, open_note_window, open_settings_window, open_trash_window,
@@ -296,29 +296,16 @@ pub(crate) fn show_context_menu(
             Image::new_owned(rgba, S, S)
         }
 
-        let colors: &[(&str, &str, u8, u8, u8)] = &[
-            ("yellow", "イエロー", 0xF9, 0xE9, 0x7A),
-            ("blue", "ブルー", 0x7F, 0xB3, 0xE0),
-            ("green", "グリーン", 0x8C, 0xC9, 0x8F),
-            ("pink", "ピンク", 0xE8, 0x8F, 0xAB),
-            ("purple", "パープル", 0xC4, 0x8D, 0xD0),
-            ("gray", "グレー", 0xB8, 0xB8, 0xB8),
-        ];
-
-        let color_items: Vec<IconMenuItem<tauri::Wry>> = colors
+        let color_items: Vec<IconMenuItem<tauri::Wry>> = COLOR_DEFS
             .iter()
-            .map(|(key, label, r, g, b)| {
-                let check = if *key == current_color.as_str() {
-                    "✓ "
-                } else {
-                    "    "
-                };
+            .map(|c| {
+                let check = if c.key == current_color.as_str() { "✓ " } else { "    " };
                 IconMenuItem::with_id(
                     &app,
-                    format!("ctx_color_{}", key),
-                    format!("{}{}", check, label),
+                    format!("ctx_color_{}", c.key),
+                    format!("{}{}", check, c.label),
                     true,
-                    Some(color_circle(*r, *g, *b)),
+                    Some(color_circle(c.r, c.g, c.b)),
                     None::<&str>,
                 )
                 .unwrap()
@@ -474,8 +461,7 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
         }
         _ if event_id.starts_with("ctx_color_") => {
             let color = event_id.trim_start_matches("ctx_color_");
-            let valid = ["yellow", "blue", "green", "pink", "purple", "gray"];
-            if !valid.contains(&color) {
+            if !COLOR_DEFS.iter().any(|c| c.key == color) {
                 return;
             }
             let mut notes = state.notes.recover();

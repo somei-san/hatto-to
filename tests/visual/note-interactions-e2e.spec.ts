@@ -175,8 +175,9 @@ test.describe("ペースト（URLリンク変換）", () => {
     // "hello" と入力
     await page.locator(".editor").pressSequentially("hello");
 
-    // "hello" を全選択
-    await page.keyboard.press("Meta+a");
+    // "hello" を全選択（macOS: Meta+a, Linux: Control+a）
+    const mod = process.platform === "darwin" ? "Meta" : "Control";
+    await page.keyboard.press(`${mod}+a`);
 
     // クリップボードにURLを設定してペーストイベントをdispatch
     await page.evaluate(() => {

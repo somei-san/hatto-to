@@ -22,15 +22,21 @@ pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note
     } else {
         default_color
     };
-    let note = Note::new(&color);
-    let mut notes = state.notes.recover();
-    let offset = ((notes.len() % 20) as f64) * 30.0;
-    let mut n = note;
-    n.x += offset;
-    n.y += offset;
+    // Build note with offset — release notes lock before opening window
+    let n = {
+        let notes = state.notes.recover();
+        let offset = ((notes.len() % 20) as f64) * 30.0;
+        let mut n = Note::new(&color);
+        n.x += offset;
+        n.y += offset;
+        n
+    };
     open_note_window(app, &n);
-    notes.push(n.clone());
-    save_notes(&notes);
+    {
+        let mut notes = state.notes.recover();
+        notes.push(n.clone());
+        save_notes(&notes);
+    }
     n
 }
 

@@ -13,12 +13,14 @@ use crate::window::{
 
 // ── Tauri Commands ──────────────────────────────────────────
 
+/// 指定 ID の付箋を返す。見つからない場合は `None`。
 #[tauri::command]
 pub(crate) fn get_note(id: String, state: State<AppState>) -> Option<Note> {
     let notes = state.notes.recover();
     notes.iter().find(|n| n.id == id).cloned()
 }
 
+/// 付箋の本文を更新して保存する。
 #[tauri::command]
 pub(crate) fn update_note_content(id: String, content: String, state: State<AppState>) {
     let mut notes = state.notes.recover();
@@ -28,6 +30,7 @@ pub(crate) fn update_note_content(id: String, content: String, state: State<AppS
     }
 }
 
+/// 付箋の色を更新して保存する。
 #[tauri::command]
 pub(crate) fn update_note_color(id: String, color: String, state: State<AppState>) {
     let mut notes = state.notes.recover();
@@ -37,6 +40,7 @@ pub(crate) fn update_note_color(id: String, color: String, state: State<AppState
     }
 }
 
+/// 付箋のウィンドウ位置・サイズを更新して保存する。
 #[tauri::command]
 pub(crate) fn update_note_geometry(
     id: String,
@@ -56,6 +60,7 @@ pub(crate) fn update_note_geometry(
     }
 }
 
+/// 付箋の表示倍率（50〜200%）を更新して保存する。
 #[tauri::command]
 pub(crate) fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) {
     let mut notes = state.notes.recover();
@@ -65,6 +70,7 @@ pub(crate) fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) {
     }
 }
 
+/// 付箋のピン留め状態を更新して保存する。
 #[tauri::command]
 pub(crate) fn update_note_pinned(id: String, pinned: bool, state: State<AppState>) {
     let mut notes = state.notes.recover();
@@ -76,11 +82,7 @@ pub(crate) fn update_note_pinned(id: String, pinned: bool, state: State<AppState
 
 /// Confirm deletion if setting is enabled. Returns false if user cancelled.
 pub(crate) fn confirm_delete_if_needed(app: &AppHandle, state: &AppState) -> bool {
-    let confirm = state
-        .settings
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .confirm_before_delete;
+    let confirm = state.settings.recover().confirm_before_delete;
     if !confirm {
         return true;
     }
@@ -112,6 +114,7 @@ pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) {
     }
 }
 
+/// 付箋をゴミ箱へ移動する。`confirm_before_delete` が有効な場合は確認ダイアログを表示する。
 #[tauri::command]
 pub(crate) fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
     if !confirm_delete_if_needed(&app, &state) {
@@ -120,20 +123,19 @@ pub(crate) fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
     do_delete_note(&id, &app, &state);
 }
 
+/// ゴミ箱内の付箋一覧を返す。
 #[tauri::command]
 pub(crate) fn get_trash(state: State<AppState>) -> Vec<Note> {
-    state
-        .trash
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
+    state.trash.recover().clone()
 }
 
+/// ゴミ箱の最大保存件数を返す。
 #[tauri::command]
 pub(crate) fn get_trash_max() -> usize {
     TRASH_MAX
 }
 
+/// ゴミ箱から付箋を復元し、ウィンドウを開く。見つからない場合は `None`。
 #[tauri::command]
 pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -> Option<Note> {
     let note = {
@@ -157,6 +159,7 @@ pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -
     }
 }
 
+/// ゴミ箱を空にする。
 #[tauri::command]
 pub(crate) fn empty_trash(state: State<AppState>) {
     let mut trash = state.trash.recover();
@@ -164,15 +167,13 @@ pub(crate) fn empty_trash(state: State<AppState>) {
     save_trash(&trash);
 }
 
+/// 現在の設定を返す。
 #[tauri::command]
 pub(crate) fn get_settings(state: State<AppState>) -> Settings {
-    state
-        .settings
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
+    state.settings.recover().clone()
 }
 
+/// 設定を更新して保存する。数値は範囲内にクランプされる。
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn update_settings(
@@ -202,21 +203,25 @@ pub(crate) fn update_settings(
     save_settings(&settings);
 }
 
+/// 設定ウィンドウを開く（既に開いている場合はフォーカスを移す）。
 #[tauri::command]
 pub(crate) fn open_settings(app: AppHandle) {
     open_settings_window(&app, None);
 }
 
+/// ゴミ箱ウィンドウを開く（既に開いている場合はフォーカスを移す）。
 #[tauri::command]
 pub(crate) fn open_trash(app: AppHandle) {
     open_trash_window(&app);
 }
 
+/// 新しい付箋を作成してウィンドウを開き、作成した付箋を返す。
 #[tauri::command]
 pub(crate) fn create_note(app: AppHandle, state: State<AppState>) -> Note {
     create_note_with_window(&app, &state)
 }
 
+/// 呼び出し元以外の全付箋ウィンドウを前面に表示する（500ms クールダウン付き）。
 #[tauri::command]
 pub(crate) fn bring_other_notes_to_front(
     caller_id: String,
@@ -225,10 +230,7 @@ pub(crate) fn bring_other_notes_to_front(
 ) {
     // Cooldown: skip if triggered within last 1 second
     {
-        let mut last = state
-            .last_bring_to_front
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut last = state.last_bring_to_front.recover();
         if last.elapsed() < std::time::Duration::from_millis(500) {
             return;
         }

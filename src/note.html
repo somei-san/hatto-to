@@ -607,7 +607,7 @@
     }
     rawContent = lines.join('\n');
     editor.innerText = rawContent;
-    invoke('update_note_content', { id: noteId, content: rawContent });
+    invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => console.error('save failed:', e));
     mdView.innerHTML = renderMarkdown(rawContent);
   });
 
@@ -623,7 +623,7 @@
     if (next === currentZoom) return;
     currentZoom = next;
     applyZoom(next);
-    invoke('update_note_zoom', { id: noteId, zoom: next });
+    invoke('update_note_zoom', { id: noteId, zoom: next }).catch(e => console.error('save failed:', e));
   }
 
   // ── Markdown auto-continue on Enter ─────────────
@@ -906,7 +906,7 @@
     rawContent = editor.innerText.replace(/\u00A0/g, ' ');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      invoke('update_note_content', { id: noteId, content: rawContent });
+      invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => console.error('save failed:', e));
     }, 300);
   });
 
@@ -937,7 +937,7 @@
           y: pos.y,
           width: size.width,
           height: size.height,
-        });
+        }).catch(e => console.error('save failed:', e));
       } catch (e) {
         // Window might be closing
       }
@@ -960,11 +960,11 @@
 
   // ── Buttons ───────────────────────────────────────
   newBtn.addEventListener('click', () => {
-    invoke('create_note');
+    invoke('create_note').catch(e => console.error('create note failed:', e));
   });
 
   document.getElementById('btn-delete').addEventListener('click', () => {
-    invoke('delete_note', { id: noteId });
+    invoke('delete_note', { id: noteId }).catch(e => console.error('delete failed:', e));
   });
 
   colorBtn.addEventListener('click', (e) => {
@@ -977,7 +977,7 @@
     dot.addEventListener('click', () => {
       const color = dot.dataset.color;
       applyColor(color);
-      invoke('update_note_color', { id: noteId, color });
+      invoke('update_note_color', { id: noteId, color }).catch(e => console.error('save failed:', e));
       picker.classList.remove('open');
     });
   });
@@ -996,7 +996,7 @@
   function resetZoom() {
     currentZoom = 100;
     applyZoom(100);
-    invoke('update_note_zoom', { id: noteId, zoom: 100 });
+    invoke('update_note_zoom', { id: noteId, zoom: 100 }).catch(e => console.error('save failed:', e));
   }
 
   // Listen for zoom events from app menu (only apply to focused window)
@@ -1037,7 +1037,7 @@
       id: noteId,
       isPinned: pinBtn.classList.contains('active'),
       currentColor: currentColor,
-    });
+    }).catch(e => console.error('context menu failed:', e));
   });
 
   // ── Expose for Playwright tests ──────────────────────

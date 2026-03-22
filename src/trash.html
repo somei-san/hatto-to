@@ -214,13 +214,21 @@
   listEl.addEventListener('click', async (e) => {
     const btn = e.target.closest('.btn-restore');
     if (!btn) return;
-    await invoke('restore_note', { id: btn.dataset.id });
-    render();
+    try {
+      await invoke('restore_note', { id: btn.dataset.id });
+      render();
+    } catch (e) {
+      console.error('restore failed:', e);
+    }
   });
 
   document.getElementById('btn-empty').addEventListener('click', async () => {
-    await invoke('empty_trash');
-    render();
+    try {
+      await invoke('empty_trash');
+      render();
+    } catch (e) {
+      console.error('empty trash failed:', e);
+    }
   });
 
   // ── ⌘W to close window ─────────────────────────────

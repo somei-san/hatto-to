@@ -30,7 +30,9 @@ pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note
     {
         let mut notes = state.notes.recover();
         notes.push(n.clone());
-        save_notes(&notes);
+        if let Err(e) = save_notes(&notes) {
+            eprintln!("save notes error: {}", e);
+        }
     }
     n
 }

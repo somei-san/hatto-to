@@ -72,10 +72,8 @@ fn save_notes_to(notes: &[Note], path: &Path) -> Result<(), String> {
     save_json(notes, path, "notes")
 }
 
-pub(crate) fn save_notes(notes: &[Note]) {
-    if let Err(e) = save_notes_to(notes, &data_file()) {
-        eprintln!("{}", e);
-    }
+pub(crate) fn save_notes(notes: &[Note]) -> Result<(), String> {
+    save_notes_to(notes, &data_file())
 }
 
 fn load_settings_from(path: &Path) -> Settings {
@@ -90,10 +88,8 @@ fn save_settings_to(settings: &Settings, path: &Path) -> Result<(), String> {
     save_json(settings, path, "settings")
 }
 
-pub(crate) fn save_settings(settings: &Settings) {
-    if let Err(e) = save_settings_to(settings, &settings_file()) {
-        eprintln!("{}", e);
-    }
+pub(crate) fn save_settings(settings: &Settings) -> Result<(), String> {
+    save_settings_to(settings, &settings_file())
 }
 
 fn load_trash_from(path: &Path) -> Vec<Note> {
@@ -108,10 +104,8 @@ fn save_trash_to(trash: &[Note], path: &Path) -> Result<(), String> {
     save_json(trash, path, "trash")
 }
 
-pub(crate) fn save_trash(trash: &[Note]) {
-    if let Err(e) = save_trash_to(trash, &trash_file()) {
-        eprintln!("{}", e);
-    }
+pub(crate) fn save_trash(trash: &[Note]) -> Result<(), String> {
+    save_trash_to(trash, &trash_file())
 }
 
 /// ゴミ箱のFIFO制限: TRASH_MAXを超えた分を先頭から削除

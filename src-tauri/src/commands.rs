@@ -12,12 +12,13 @@ use crate::window::{
 // ── Tauri Commands ──────────────────────────────────────────
 
 /// 指定 ID の付箋を検索し、クロージャで更新して保存する。
-fn update_note_field(state: &AppState, id: &str, f: impl FnOnce(&mut Note)) {
+fn update_note_field(state: &AppState, id: &str, f: impl FnOnce(&mut Note)) -> Result<(), String> {
     let mut notes = state.notes.recover();
     if let Some(note) = notes.iter_mut().find(|n| n.id == id) {
         f(note);
-        save_notes(&notes);
+        save_notes(&notes)?;
     }
+    Ok(())
 }
 
 /// 指定 ID の付箋を返す。見つからない場合は `None`。
@@ -29,18 +30,18 @@ pub(crate) fn get_note(id: String, state: State<AppState>) -> Option<Note> {
 
 /// 付箋の本文を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_content(id: String, content: String, state: State<AppState>) {
-    update_note_field(&state, &id, |note| note.content = content);
+pub(crate) fn update_note_content(id: String, content: String, state: State<AppState>) -> Result<(), String> {
+    update_note_field(&state, &id, |note| note.content = content)
 }
 
 /// 付箋の色を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_color(id: String, color: String, state: State<AppState>) {
+pub(crate) fn update_note_color(id: String, color: String, state: State<AppState>) -> Result<(), String> {
     let resolved = resolve_color(&color);
     if !COLOR_DEFS.iter().any(|c| c.key == resolved) {
-        return;
+        return Ok(());
     }
-    update_note_field(&state, &id, |note| note.color = resolved);
+    update_note_field(&state, &id, |note| note.color = resolved)
 }
 
 /// 付箋のウィンドウ位置・サイズを更新して保存する。
@@ -52,25 +53,25 @@ pub(crate) fn update_note_geometry(
     width: f64,
     height: f64,
     state: State<AppState>,
-) {
+) -> Result<(), String> {
     update_note_field(&state, &id, |note| {
         note.x = x;
         note.y = y;
         note.width = width;
         note.height = height;
-    });
+    })
 }
 
 /// 付箋の表示倍率（50〜200%）を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) {
-    update_note_field(&state, &id, |note| note.zoom = zoom.clamp(50, 200));
+pub(crate) fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) -> Result<(), String> {
+    update_note_field(&state, &id, |note| note.zoom = zoom.clamp(50, 200))
 }
 
 /// 付箋のピン留め状態を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_pinned(id: String, pinned: bool, state: State<AppState>) {
-    update_note_field(&state, &id, |note| note.pinned = pinned);
+pub(crate) fn update_note_pinned(id: String, pinned: bool, state: State<AppState>) -> Result<(), String> {
+    update_note_field(&state, &id, |note| note.pinned = pinned)
 }
 
 /// Confirm deletion if setting is enabled. Returns false if user cancelled.
@@ -90,30 +91,31 @@ pub(crate) fn confirm_delete_if_needed(app: &AppHandle, state: &AppState) -> boo
 }
 
 /// Move a note to trash and close its window.
-pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) {
+pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) -> Result<(), String> {
     {
         let mut notes = state.notes.recover();
         if let Some(pos) = notes.iter().position(|n| n.id == id) {
             let note = notes.remove(pos);
-            save_notes(&notes);
+            save_notes(&notes)?;
             let mut trash = state.trash.recover();
             trash.push(note);
             enforce_trash_limit(&mut trash);
-            save_trash(&trash);
+            save_trash(&trash)?;
         }
     }
     if let Some(win) = app.get_webview_window(&format!("note-{}", id)) {
         let _ = win.close();
     }
+    Ok(())
 }
 
 /// 付箋をゴミ箱へ移動する。`confirm_before_delete` が有効な場合は確認ダイアログを表示する。
 #[tauri::command]
-pub(crate) fn delete_note(id: String, app: AppHandle, state: State<AppState>) {
+pub(crate) fn delete_note(id: String, app: AppHandle, state: State<AppState>) -> Result<(), String> {
     if !confirm_delete_if_needed(&app, &state) {
-        return;
+        return Ok(());
     }
-    do_delete_note(&id, &app, &state);
+    do_delete_note(&id, &app, &state)
 }
 
 /// ゴミ箱内の付箋一覧を返す。
@@ -130,12 +132,12 @@ pub(crate) fn get_trash_max() -> usize {
 
 /// ゴミ箱から付箋を復元し、ウィンドウを開く。見つからない場合は `None`。
 #[tauri::command]
-pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -> Option<Note> {
+pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -> Result<Option<Note>, String> {
     let note = {
         let mut trash = state.trash.recover();
         if let Some(pos) = trash.iter().position(|n| n.id == id) {
             let note = trash.remove(pos);
-            save_trash(&trash);
+            save_trash(&trash)?;
             Some(note)
         } else {
             None
@@ -145,19 +147,19 @@ pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -
         open_note_window(&app, &note);
         let mut notes = state.notes.recover();
         notes.push(note.clone());
-        save_notes(&notes);
-        Some(note)
+        save_notes(&notes)?;
+        Ok(Some(note))
     } else {
-        None
+        Ok(None)
     }
 }
 
 /// ゴミ箱を空にする。
 #[tauri::command]
-pub(crate) fn empty_trash(state: State<AppState>) {
+pub(crate) fn empty_trash(state: State<AppState>) -> Result<(), String> {
     let mut trash = state.trash.recover();
     trash.clear();
-    save_trash(&trash);
+    save_trash(&trash)
 }
 
 /// 現在の設定を返す。
@@ -181,7 +183,7 @@ pub(crate) fn update_settings(
     show_color_button: bool,
     confirm_before_delete: bool,
     state: State<AppState>,
-) {
+) -> Result<(), String> {
     let mut settings = state.settings.recover();
     settings.default_color = default_color;
     settings.font_size = font_size.clamp(8, 72);
@@ -193,7 +195,7 @@ pub(crate) fn update_settings(
     settings.show_new_button = show_new_button;
     settings.show_color_button = show_color_button;
     settings.confirm_before_delete = confirm_before_delete;
-    save_settings(&settings);
+    save_settings(&settings)
 }
 
 /// 設定ウィンドウを開く（既に開いている場合はフォーカスを移す）。
@@ -387,7 +389,9 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
         }
         "ctx_delete" => {
             if confirm_delete_if_needed(app, &state) {
-                do_delete_note(&note_id, app, &state);
+                if let Err(e) = do_delete_note(&note_id, app, &state) {
+                    eprintln!("delete note error: {}", e);
+                }
             }
         }
         "ctx_trash" => {
@@ -419,7 +423,9 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
             let mut notes = state.notes.recover();
             if let Some(note) = notes.iter_mut().find(|n| n.id == note_id) {
                 note.color = color.to_string();
-                save_notes(&notes);
+                if let Err(e) = save_notes(&notes) {
+                    eprintln!("save notes error: {}", e);
+                }
             }
             drop(notes);
             if let Some(w) = &win {

@@ -78,7 +78,9 @@ pub fn run() {
                 open_note_window(app.handle(), &note);
                 let mut notes = state.notes.lock().unwrap_or_else(|e| e.into_inner());
                 notes.push(note);
-                save_notes(&notes);
+                if let Err(e) = save_notes(&notes) {
+                    eprintln!("save notes error: {}", e);
+                }
             } else {
                 for note in &notes {
                     open_note_window(app.handle(), note);

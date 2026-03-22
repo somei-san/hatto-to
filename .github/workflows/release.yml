@@ -24,9 +24,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-release-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          key: ${{ runner.os }}-release-cargo-v2-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-release-cargo-
+            ${{ runner.os }}-release-cargo-v2-
 
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked

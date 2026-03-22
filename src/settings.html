@@ -778,10 +778,16 @@
   const autostartToggle = document.getElementById('autostart-toggle');
 
   autostartToggle.addEventListener('change', async () => {
-    if (autostartToggle.checked) {
-      await invoke('plugin:autostart|enable');
-    } else {
-      await invoke('plugin:autostart|disable');
+    try {
+      if (autostartToggle.checked) {
+        await invoke('plugin:autostart|enable');
+      } else {
+        await invoke('plugin:autostart|disable');
+      }
+    } catch (e) {
+      console.error('autostart toggle failed:', e);
+      // 失敗したらトグルを元に戻す
+      autostartToggle.checked = !autostartToggle.checked;
     }
   });
 

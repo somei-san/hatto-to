@@ -132,6 +132,7 @@ mod tests {
             height: 320.0,
             zoom: 100,
             pinned: false,
+            deleted_at: None,
         }
     }
 

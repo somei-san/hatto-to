@@ -102,6 +102,9 @@ pub struct Note {
     pub zoom: u32,
     #[serde(default)]
     pub pinned: bool,
+    /// 削除日時（Unix タイムスタンプ秒）。ゴミ箱に移動した時に設定される。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_at: Option<u64>,
 }
 
 fn default_zoom() -> u32 {
@@ -120,6 +123,7 @@ impl Note {
             height: 320.0,
             zoom: 100,
             pinned: false,
+            deleted_at: None,
         }
     }
 }

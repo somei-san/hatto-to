@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use tauri::image::Image;
 use tauri::menu::{ContextMenu, IconMenuItem, Menu, MenuItem, NativeIcon, PredefinedMenuItem};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -95,8 +97,14 @@ pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) -> Res
     {
         let mut notes = state.notes.recover();
         if let Some(pos) = notes.iter().position(|n| n.id == id) {
-            let note = notes.remove(pos);
+            let mut note = notes.remove(pos);
             save_notes(&notes)?;
+            note.deleted_at = Some(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            );
             let mut trash = state.trash.recover();
             trash.push(note);
             enforce_trash_limit(&mut trash);
@@ -143,7 +151,8 @@ pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -
             None
         }
     };
-    if let Some(note) = note {
+    if let Some(mut note) = note {
+        note.deleted_at = None;
         open_note_window(&app, &note);
         let mut notes = state.notes.recover();
         notes.push(note.clone());

@@ -73,10 +73,10 @@ jobs:
             version "${VERSION}"
             sha256 "${SHA256}"
 
-            url "https://github.com/somei-san/hatto-to/releases/download/v#{version}/${DMG_NAME}"
+            url "https://github.com/somei-san/hattotto/releases/download/v#{version}/${DMG_NAME}"
             name "Hattotto"
             desc "macOS Stickies-style sticky notes desktop app"
-            homepage "https://github.com/somei-san/hatto-to"
+            homepage "https://github.com/somei-san/hattotto"
 
             app "Hattotto.app"
 

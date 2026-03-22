@@ -209,6 +209,7 @@
       ]);
     } catch (e) {
       console.error('render trash failed:', e);
+      listEl.innerHTML = '<div class="empty-msg">読み込みに失敗しました</div>';
       return;
     }
     countEl.textContent = `(${items.length} / ${trashMax})`;

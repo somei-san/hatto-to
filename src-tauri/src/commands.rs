@@ -32,13 +32,21 @@ pub(crate) fn get_note(id: String, state: State<AppState>) -> Option<Note> {
 
 /// 付箋の本文を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_content(id: String, content: String, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn update_note_content(
+    id: String,
+    content: String,
+    state: State<AppState>,
+) -> Result<(), String> {
     update_note_field(&state, &id, |note| note.content = content)
 }
 
 /// 付箋の色を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_color(id: String, color: String, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn update_note_color(
+    id: String,
+    color: String,
+    state: State<AppState>,
+) -> Result<(), String> {
     let resolved = resolve_color(&color);
     if !COLOR_DEFS.iter().any(|c| c.key == resolved) {
         return Ok(());
@@ -66,13 +74,21 @@ pub(crate) fn update_note_geometry(
 
 /// 付箋の表示倍率（50〜200%）を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_zoom(id: String, zoom: u32, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn update_note_zoom(
+    id: String,
+    zoom: u32,
+    state: State<AppState>,
+) -> Result<(), String> {
     update_note_field(&state, &id, |note| note.zoom = zoom.clamp(50, 200))
 }
 
 /// 付箋のピン留め状態を更新して保存する。
 #[tauri::command]
-pub(crate) fn update_note_pinned(id: String, pinned: bool, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn update_note_pinned(
+    id: String,
+    pinned: bool,
+    state: State<AppState>,
+) -> Result<(), String> {
     update_note_field(&state, &id, |note| note.pinned = pinned)
 }
 
@@ -119,7 +135,11 @@ pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) -> Res
 
 /// 付箋をゴミ箱へ移動する。`confirm_before_delete` が有効な場合は確認ダイアログを表示する。
 #[tauri::command]
-pub(crate) fn delete_note(id: String, app: AppHandle, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn delete_note(
+    id: String,
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<(), String> {
     if !confirm_delete_if_needed(&app, &state) {
         return Ok(());
     }
@@ -140,7 +160,11 @@ pub(crate) fn get_trash_max() -> usize {
 
 /// ゴミ箱から付箋を復元し、ウィンドウを開く。見つからない場合は `None`。
 #[tauri::command]
-pub(crate) fn restore_note(id: String, app: AppHandle, state: State<AppState>) -> Result<Option<Note>, String> {
+pub(crate) fn restore_note(
+    id: String,
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<Option<Note>, String> {
     let note = {
         let mut trash = state.trash.recover();
         if let Some(pos) = trash.iter().position(|n| n.id == id) {
@@ -224,7 +248,6 @@ pub(crate) fn open_trash(app: AppHandle) {
 pub(crate) fn create_note(app: AppHandle, state: State<AppState>) -> Note {
     create_note_with_window(&app, &state)
 }
-
 
 /// Generate a colored circle icon (16×16 RGBA) for context menu color items.
 fn color_circle(r: u8, g: u8, b: u8) -> Image<'static> {

@@ -445,8 +445,13 @@
   async function togglePin() {
     const isPinned = !pinBtn.classList.contains('active');
     applyPinState(isPinned);
-    await appWindow.setAlwaysOnTop(isPinned);
-    await invoke('update_note_pinned', { id: noteId, pinned: isPinned });
+    try {
+      await appWindow.setAlwaysOnTop(isPinned);
+      await invoke('update_note_pinned', { id: noteId, pinned: isPinned });
+    } catch (e) {
+      console.error('togglePin failed:', e);
+      applyPinState(!isPinned); // 失敗時はUI を元に戻す
+    }
   }
 
   // ── Apply Color Theme ─────────────────────────────
@@ -486,7 +491,11 @@
       console.error('loadNote failed:', e);
       return;
     }
-    if (!note) return;
+    if (!note) {
+      console.error('Note not found, closing window:', noteId);
+      appWindow.close();
+      return;
+    }
 
     rawContent = note.content;
     editor.innerText = rawContent;

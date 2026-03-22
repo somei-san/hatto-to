@@ -39,15 +39,50 @@ pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note
 
 // ── Window Management ───────────────────────────────────────
 
+/// モニターの論理座標範囲を確認し、付箋の位置が全モニター外なら
+/// プライマリモニター上のデフォルト位置にクランプする。
+/// モニター情報が取得できない場合は元の座標をそのまま返す。
+fn clamp_to_screen(app: &AppHandle, x: f64, y: f64) -> (f64, f64) {
+    let Ok(monitors) = app.available_monitors() else {
+        return (x, y);
+    };
+    if monitors.is_empty() {
+        return (x, y);
+    }
+    for monitor in &monitors {
+        let sf = monitor.scale_factor();
+        let mx = monitor.position().x as f64 / sf;
+        let my = monitor.position().y as f64 / sf;
+        let mw = monitor.size().width as f64 / sf;
+        let mh = monitor.size().height as f64 / sf;
+        // 付箋の左上コーナーがモニター内にあれば OK（端50px のマージンあり）
+        if x >= mx && x < mx + mw - 50.0 && y >= my && y < my + mh - 50.0 {
+            return (x, y);
+        }
+    }
+    // どのモニターにも収まらない → プライマリモニターの左上付近にリセット
+    let (base_x, base_y) = app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|m| {
+            let sf = m.scale_factor();
+            (m.position().x as f64 / sf, m.position().y as f64 / sf)
+        })
+        .unwrap_or((0.0, 0.0));
+    (base_x + 120.0, base_y + 120.0)
+}
+
 pub(crate) fn open_note_window(app: &AppHandle, note: &Note) {
     let label = format!("note-{}", note.id);
     let url = format!("note.html?id={}", note.id);
 
+    let (x, y) = clamp_to_screen(app, note.x, note.y);
     let Ok(win) = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
         .title("") // No title for Stickies-like feel
         .inner_size(note.width, note.height)
         .min_inner_size(200.0, 150.0)
-        .position(note.x, note.y)
+        .position(x, y)
         .decorations(false)
         .transparent(true)
         .always_on_top(note.pinned)

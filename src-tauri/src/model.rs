@@ -339,4 +339,28 @@ mod tests {
         let s: Settings = serde_json::from_str(json).unwrap();
         assert!(s.confirm_before_delete);
     }
+
+    // ── resolve_color ──
+
+    #[test]
+    fn resolve_color_known_key_passthrough() {
+        for c in COLOR_DEFS {
+            assert_eq!(resolve_color(c.key), c.key);
+        }
+    }
+
+    #[test]
+    fn resolve_color_random_returns_valid_key() {
+        let result = resolve_color("random");
+        assert!(
+            COLOR_DEFS.iter().any(|c| c.key == result),
+            "resolve_color(\"random\") returned unknown key: {result}"
+        );
+    }
+
+    #[test]
+    fn resolve_color_unknown_key_passthrough() {
+        // 不明なキーはそのまま返す（バリデーションは呼び出し側が行う）
+        assert_eq!(resolve_color("bogus"), "bogus");
+    }
 }

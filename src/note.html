@@ -950,14 +950,17 @@
     clearTimeout(geoTimer);
     geoTimer = setTimeout(async () => {
       try {
+        const sf   = await appWindow.scaleFactor();
         const pos  = await appWindow.outerPosition();
         const size = await appWindow.outerSize();
+        const lpos  = pos.toLogical(sf);
+        const lsize = size.toLogical(sf);
         invoke('update_note_geometry', {
           id: noteId,
-          x: pos.x,
-          y: pos.y,
-          width: size.width,
-          height: size.height,
+          x: lpos.x,
+          y: lpos.y,
+          width: lsize.width,
+          height: lsize.height,
         }).catch(e => console.error('save failed:', e));
       } catch (e) {
         // Window might be closing

@@ -5,6 +5,8 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder
 use crate::model::{resolve_color, AppState, Note, RecoverMutex};
 use crate::persistence::save_notes;
 
+const DEFAULT_POSITION: (f64, f64) = (120.0, 120.0);
+
 // ── Note Creation Helper ────────────────────────────────────
 
 /// Create a new note with offset positioning and open its window.
@@ -41,7 +43,7 @@ pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note
 
 /// モニターの論理座標範囲を確認し、付箋の位置が全モニター外なら
 /// プライマリモニター上のデフォルト位置にクランプする。
-/// モニター情報が取得できない場合は元の座標をそのまま返す。
+/// モニター情報が取得できない場合は検証不能なので元の座標をそのまま返す。
 fn clamp_to_screen(app: &AppHandle, x: f64, y: f64) -> (f64, f64) {
     let Ok(monitors) = app.available_monitors() else {
         return (x, y);
@@ -70,7 +72,7 @@ fn clamp_to_screen(app: &AppHandle, x: f64, y: f64) -> (f64, f64) {
             (m.position().x as f64 / sf, m.position().y as f64 / sf)
         })
         .unwrap_or((0.0, 0.0));
-    (base_x + 120.0, base_y + 120.0)
+    (base_x + DEFAULT_POSITION.0, base_y + DEFAULT_POSITION.1)
 }
 
 pub(crate) fn open_note_window(app: &AppHandle, note: &Note) {

@@ -108,10 +108,10 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
     expect(extractOrderNums(html)).toEqual(["1", "2", "3"]);
   });
 
-  test("indent change resets counter", async ({ notePage }) => {
+  test("indent change continues parent counter", async ({ notePage }) => {
     const html = await render(notePage, "1. top\n  1. sub-a\n  1. sub-b\n1. top2");
-    // top=1, sub-a=1, sub-b=2, top2=1 (level change resets counter)
-    expect(extractOrderNums(html)).toEqual(["1", "1", "2", "1"]);
+    // top=1, sub-a=1, sub-b=2, top2=2 (returning to parent continues counter)
+    expect(extractOrderNums(html)).toEqual(["1", "1", "2", "2"]);
   });
 
   test("non-numbered line resets counter", async ({ notePage }) => {
@@ -136,10 +136,10 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
     expect(extractOrderNums(html)).toEqual(["1", "2", "1"]);
   });
 
-  test("deeper indent resets when returning to parent level", async ({ notePage }) => {
+  test("deeper indent continues when returning to parent level", async ({ notePage }) => {
     const html = await render(notePage, "1. a\n1. b\n  1. child1\n  1. child2\n1. c");
-    // a=1, b=2, child1=1, child2=2, c=1 (returning to parent resets counter)
-    expect(extractOrderNums(html)).toEqual(["1", "2", "1", "2", "1"]);
+    // a=1, b=2, child1=1, child2=2, c=3 (returning to parent continues counter)
+    expect(extractOrderNums(html)).toEqual(["1", "2", "1", "2", "3"]);
   });
 
   test("single ordered item displays as 1.", async ({ notePage }) => {
@@ -150,6 +150,26 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
   test("source number is ignored — always auto-increments", async ({ notePage }) => {
     const html = await render(notePage, "5. first\n99. second\n1. third");
     expect(extractOrderNums(html)).toEqual(["1", "2", "3"]);
+  });
+
+  test("alternating indent levels continue counters correctly", async ({ notePage }) => {
+    // Simulates the user's real-world pattern: parent/child alternating
+    const md = "1. 申請をONにする\n1. ドロワーの表示\n1. 申請との紐づけ\n   1. 下書きになる\n1. 申請開始\n   1. 承認待ちになる\n1. 最終承認\n   1. 承認済みになる";
+    const html = await render(notePage, md);
+    // parent: 1,2,3,4,5  child: each sub-list starts at 1
+    expect(extractOrderNums(html)).toEqual(["1", "2", "3", "1", "4", "1", "5", "1"]);
+  });
+
+  test("three nesting levels count independently", async ({ notePage }) => {
+    const md = "1. L0-a\n  1. L1-a\n    1. L2-a\n    1. L2-b\n  1. L1-b\n1. L0-b";
+    const html = await render(notePage, md);
+    // L0: 1,2  L1: 1,2  L2: 1,2
+    expect(extractOrderNums(html)).toEqual(["1", "1", "1", "2", "2", "2"]);
+  });
+
+  test("nested ordered items have margin-left for indentation", async ({ notePage }) => {
+    const html = await render(notePage, "1. top\n  1. nested");
+    expect(html).toContain('margin-left: 20px');
   });
 });
 

@@ -83,3 +83,12 @@ test("note — bullet vs ordered list comparison", async ({ openNote }) => {
   });
   await expect(page).toHaveScreenshot("note-bullet-vs-ordered.png");
 });
+
+test("note — nested ordered list", async ({ openNote }) => {
+  const page = await openNote({
+    color: "green",
+    content:
+      "# 基本の流れ\n\n1. 申請・承認をONにする\n1. ドロワーの表示\n1. 申請との紐づけ\n   1. ドロワーの表示が \"下書き\" になる\n1. 申請開始\n   1. ドロワーの表示が \"承認待ち\" になる\n1. 最終承認\n   1. ドロワーの表示が \"承認済み\" になる",
+  });
+  await expect(page).toHaveScreenshot("note-nested-ordered-list.png");
+});

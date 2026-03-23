@@ -67,9 +67,10 @@ function renderMarkdown(text) {
     const trimmedLine = spaces > 0 ? line.slice(spaces) : line;
     const indentStyle = level > 0 ? ` style="margin-left: ${level * 20}px"` : '';
 
-    // Reset ordered list counter when line is not a numbered list
+    // Reset ordered list counters when line is not a numbered list
     if (!/^\d+\. /.test(trimmedLine)) {
       lastOrderedLevel = -1;
+      Object.keys(orderedCounters).forEach(k => delete orderedCounters[k]);
     }
 
     if (/^[-*] \[x\] /i.test(trimmedLine)) {
@@ -106,10 +107,15 @@ function renderMarkdown(text) {
     }
     if (/^\d+\. /.test(trimmedLine)) {
       const m = trimmedLine.match(/^(\d+)\. (.*)/);
-      // Auto-increment: reset counter when level changes or first item at this level
-      if (lastOrderedLevel !== level) {
+      // Auto-increment: reset counter only for new deeper nesting or new list block
+      if (lastOrderedLevel < 0) {
+        // New ordered list block after non-list line
+        orderedCounters[level] = 1;
+      } else if (level > lastOrderedLevel) {
+        // Going deeper — start new sub-list
         orderedCounters[level] = 1;
       } else {
+        // Same level or returning from deeper — continue counting
         orderedCounters[level] = (orderedCounters[level] || 0) + 1;
       }
       lastOrderedLevel = level;

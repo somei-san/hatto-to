@@ -27,6 +27,11 @@ function inlineMarkdown(escaped) {
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
     '<a href="$2" data-url="$2">$1</a>'
   );
+  // Bare URLs → <a> (skip URLs already inside an <a> tag)
+  escaped = escaped.replace(
+    /((?:^|[^"=]))((https?:\/\/)[^\s<]+)/g,
+    (_, pre, url) => `${pre}<a href="${url}" data-url="${url}">${url}</a>`
+  );
   // Restore code blocks
   escaped = escaped.replace(/\x00CODE(\d+)\x00/g, (_, i) => '<code>' + codeBlocks[i] + '</code>');
   return escaped;

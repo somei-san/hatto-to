@@ -4,8 +4,6 @@ import { test as base, type Page } from "@playwright/test";
 
 const DEFAULT_SETTINGS = {
   default_color: "yellow",
-  font_size: 14,
-  zoom: 100,
   opacity: 100,
   edit_on_single_click: false,
   bring_all_to_front: true,

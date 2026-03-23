@@ -456,7 +456,6 @@
   // ── Apply Settings to UI ─────────────────────────
   function applySettings(s) {
     currentSettings = s;
-    editor.style.fontSize = `${s.font_size}px`;
     noteEl.style.opacity = (s.opacity ?? 100) / 100;
     pinBtn.style.display = s.show_pin_button === false ? 'none' : '';
     newBtn.style.display = s.show_new_button === false ? 'none' : '';

@@ -2,23 +2,13 @@ import { test, expect } from "./fixtures";
 
 // ── 設定タブ ───────────────────────────────────────────────
 
-test("settings tab — default (yellow, 14px)", async ({ settingsPage }) => {
+test("settings tab — default", async ({ settingsPage }) => {
   await expect(settingsPage).toHaveScreenshot("settings-default.png");
 });
 
 test("settings tab — blue selected", async ({ openSettings }) => {
   const page = await openSettings({ default_color: "blue" });
   await expect(page).toHaveScreenshot("settings-color-blue.png");
-});
-
-test("settings tab — large font selected", async ({ openSettings }) => {
-  const page = await openSettings({ font_size: 18 });
-  await expect(page).toHaveScreenshot("settings-font-large.png");
-});
-
-test("settings tab — zoom 150%", async ({ openSettings }) => {
-  const page = await openSettings({ zoom: 150 });
-  await expect(page).toHaveScreenshot("settings-zoom-150.png");
 });
 
 test("settings tab — opacity 50%", async ({ openSettings }) => {
@@ -33,7 +23,6 @@ test("settings tab — autostart on", async ({ openSettings }) => {
 
 test("settings tab — save closes window", async ({ settingsPage }) => {
   await settingsPage.click('[data-color="green"]');
-  await settingsPage.click('[data-size="12"]');
   await settingsPage.click("#save-btn");
   const closeCalled = await settingsPage.evaluate(() => (window as any).__closeWasCalled);
   expect(closeCalled).toBe(true);

@@ -194,8 +194,6 @@ mod tests {
         let path = dir.path().join("settings.json");
         let settings = Settings {
             default_color: "pink".into(),
-            font_size: 18,
-            zoom: 150,
             opacity: 80,
             edit_on_single_click: true,
             bring_all_to_front: false,
@@ -207,8 +205,6 @@ mod tests {
         save_settings_to(&settings, &path).unwrap();
         let loaded = load_settings_from(&path);
         assert_eq!(loaded.default_color, "pink");
-        assert_eq!(loaded.font_size, 18);
-        assert_eq!(loaded.zoom, 150);
         assert_eq!(loaded.opacity, 80);
         assert!(loaded.edit_on_single_click);
         assert!(loaded.confirm_before_delete);

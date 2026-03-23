@@ -205,8 +205,6 @@ pub(crate) fn get_settings(state: State<AppState>) -> Settings {
 #[allow(clippy::too_many_arguments)] // Tauri コマンドは個別引数が JS キーに対応するため
 pub(crate) fn update_settings(
     default_color: String,
-    font_size: u32,
-    zoom: u32,
     opacity: u32,
     edit_on_single_click: bool,
     bring_all_to_front: bool,
@@ -218,8 +216,6 @@ pub(crate) fn update_settings(
 ) -> Result<(), String> {
     let mut settings = state.settings.recover();
     settings.default_color = default_color;
-    settings.font_size = font_size.clamp(8, 72);
-    settings.zoom = zoom.clamp(50, 200);
     settings.opacity = opacity.clamp(20, 100);
     settings.edit_on_single_click = edit_on_single_click;
     settings.bring_all_to_front = bring_all_to_front;

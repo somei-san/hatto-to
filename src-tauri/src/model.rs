@@ -131,8 +131,6 @@ impl Note {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Settings {
     pub default_color: String,
-    pub font_size: u32,
-    pub zoom: u32,
     pub opacity: u32,
     #[serde(default)]
     pub edit_on_single_click: bool,
@@ -156,8 +154,6 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             default_color: "yellow".into(),
-            font_size: 14,
-            zoom: 100,
             opacity: 100,
             edit_on_single_click: false,
             bring_all_to_front: true,
@@ -215,8 +211,6 @@ mod tests {
     fn settings_default_values() {
         let s = Settings::default();
         assert_eq!(s.default_color, "yellow");
-        assert_eq!(s.font_size, 14);
-        assert_eq!(s.zoom, 100);
         assert_eq!(s.opacity, 100);
         assert!(!s.edit_on_single_click);
         assert!(s.bring_all_to_front);
@@ -293,8 +287,6 @@ mod tests {
     #[test]
     fn settings_default_numeric_fields() {
         let s = Settings::default();
-        assert_eq!(s.font_size, 14);
-        assert_eq!(s.zoom, 100);
         assert_eq!(s.opacity, 100);
     }
 
@@ -339,7 +331,7 @@ mod tests {
 
     #[test]
     fn settings_deserialize_without_confirm_before_delete_defaults_to_true() {
-        let json = r#"{"default_color":"yellow","font_size":14,"zoom":100,"opacity":100}"#;
+        let json = r#"{"default_color":"yellow","opacity":100}"#;
         let s: Settings = serde_json::from_str(json).unwrap();
         assert!(s.confirm_before_delete);
     }

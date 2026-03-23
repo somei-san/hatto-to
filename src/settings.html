@@ -118,41 +118,6 @@
     );
   }
 
-  /* ── Font Size Selector ───────────────────────────── */
-  .font-size-row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .size-btn {
-    flex: 1;
-    padding: 8px;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    text-align: center;
-    transition: border-color 0.15s, background 0.15s;
-    font-family: inherit;
-  }
-
-  .size-btn:hover { border-color: var(--accent); }
-
-  .size-btn.active {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  .size-label {
-    display: block;
-    font-size: 10px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
-
   /* ── Save Button (sticky footer) ─────────────────── */
   .save-footer {
     position: sticky;
@@ -392,35 +357,6 @@
     </div>
   </div>
 
-  <div class="section" role="group" aria-label="文字サイズ">
-    <div class="section-title">文字サイズ</div>
-    <div class="font-size-row" id="font-size-picker">
-      <button class="size-btn" data-size="12">
-        <span style="font-size:12px">あ</span>
-        <span class="size-label">小 (12px)</span>
-      </button>
-      <button class="size-btn active" data-size="14">
-        <span style="font-size:14px">あ</span>
-        <span class="size-label">中 (14px)</span>
-      </button>
-      <button class="size-btn" data-size="18">
-        <span style="font-size:18px">あ</span>
-        <span class="size-label">大 (18px)</span>
-      </button>
-    </div>
-  </div>
-
-  <div class="section" role="group" aria-label="表示倍率">
-    <div class="section-title">表示倍率</div>
-    <div class="font-size-row" id="zoom-picker">
-      <button class="size-btn" data-zoom="75">75%</button>
-      <button class="size-btn active" data-zoom="100">100%</button>
-      <button class="size-btn" data-zoom="125">125%</button>
-      <button class="size-btn" data-zoom="150">150%</button>
-    </div>
-    <p class="hint">⌘+ / ⌘− で変更、⌘0 でリセット</p>
-  </div>
-
   <div class="section" role="group" aria-label="透過度">
     <div class="section-title">透過度</div>
     <div class="opacity-row">
@@ -569,8 +505,6 @@
   const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
 
   let currentColor   = 'yellow';
-  let currentSize    = 14;
-  let currentZoom    = 100;
   let currentOpacity = 100;
   let currentSingleClick = false;
   let currentBringAll = true;
@@ -581,7 +515,7 @@
 
   // ── Change Detection ──────────────────────────────
   let saved = {
-    color: currentColor, size: currentSize, zoom: currentZoom,
+    color: currentColor,
     opacity: currentOpacity, singleClick: currentSingleClick,
     bringAll: currentBringAll, showPin: currentShowPin,
     showNew: currentShowNew, showColor: currentShowColor,
@@ -592,8 +526,6 @@
 
   function checkDirty() {
     const dirty = currentColor !== saved.color
-      || currentSize !== saved.size
-      || currentZoom !== saved.zoom
       || currentOpacity !== saved.opacity
       || currentSingleClick !== saved.singleClick
       || currentBringAll !== saved.bringAll
@@ -606,7 +538,7 @@
 
   function snapshotSaved() {
     saved = {
-      color: currentColor, size: currentSize, zoom: currentZoom,
+      color: currentColor,
       opacity: currentOpacity, singleClick: currentSingleClick,
       bringAll: currentBringAll, showPin: currentShowPin,
       showNew: currentShowNew, showColor: currentShowColor,
@@ -667,33 +599,11 @@
     });
   });
 
-  // ── Font Size Picker ────────────────────────────────
-  document.querySelectorAll('#font-size-picker .size-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#font-size-picker .size-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentSize = parseInt(btn.dataset.size, 10);
-      checkDirty();
-    });
-  });
-
-  // ── Zoom Picker ──────────────────────────────────────
-  document.querySelectorAll('#zoom-picker .size-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#zoom-picker .size-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentZoom = parseInt(btn.dataset.zoom, 10);
-      checkDirty();
-    });
-  });
-
   // ── Save ─────────────────────────────────────────────
   saveBtn.addEventListener('click', async () => {
     try {
       await invoke('update_settings', {
         defaultColor: currentColor,
-        fontSize: currentSize,
-        zoom: currentZoom,
         opacity: currentOpacity,
         editOnSingleClick: currentSingleClick,
         bringAllToFront: currentBringAll,
@@ -704,8 +614,6 @@
       });
       emit('settings-changed', {
         default_color: currentColor,
-        font_size: currentSize,
-        zoom: currentZoom,
         opacity: currentOpacity,
         edit_on_single_click: currentSingleClick,
         bring_all_to_front: currentBringAll,
@@ -798,22 +706,12 @@
       invoke('plugin:autostart|is_enabled'),
     ]);
     currentColor = s.default_color;
-    currentSize  = s.font_size;
 
     document.querySelectorAll('#color-picker .color-dot').forEach(d => {
       const isActive = d.dataset.color === currentColor;
       d.classList.toggle('active', isActive);
       d.setAttribute('aria-checked', isActive ? 'true' : 'false');
       d.setAttribute('tabindex', isActive ? '0' : '-1');
-    });
-
-    document.querySelectorAll('#font-size-picker .size-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.size, 10) === currentSize);
-    });
-
-    currentZoom = s.zoom ?? 100;
-    document.querySelectorAll('#zoom-picker .size-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.zoom, 10) === currentZoom);
     });
 
     currentOpacity = s.opacity ?? 100;

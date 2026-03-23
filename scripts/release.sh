@@ -20,6 +20,7 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 
 TAG="v${VERSION}"
+CARGO_TOML="$PROJECT_ROOT/src-tauri/Cargo.toml"
 
 # 既存タグチェック
 if git tag -l "$TAG" | grep -q .; then
@@ -27,10 +28,30 @@ if git tag -l "$TAG" | grep -q .; then
   exit 1
 fi
 
+# バージョンを各設定ファイルに反映
+CURRENT="$(jq -r '.version' "$TAURI_CONF")"
+if [[ "$CURRENT" != "$VERSION" ]]; then
+  echo "==> バージョンを $CURRENT → $VERSION に更新..."
+
+  # tauri.conf.json
+  jq --arg v "$VERSION" '.version = $v' "$TAURI_CONF" > "${TAURI_CONF}.tmp" && mv "${TAURI_CONF}.tmp" "$TAURI_CONF"
+
+  # Cargo.toml (パッケージセクションの version のみ置換)
+  sed -i '' "s/^version = \"${CURRENT}\"/version = \"${VERSION}\"/" "$CARGO_TOML"
+
+  # Cargo.lock を更新
+  (cd "$PROJECT_ROOT/src-tauri" && cargo check --quiet 2>/dev/null)
+
+  # バージョン更新をコミット
+  git -C "$PROJECT_ROOT" add "$TAURI_CONF" "$CARGO_TOML" "$PROJECT_ROOT/src-tauri/Cargo.lock"
+  git -C "$PROJECT_ROOT" commit -m "chore: bump version to $VERSION"
+  echo "==> バージョン更新をコミットしました"
+fi
+
 # タグを作成して push → GitHub Actions (release.yml) がビルド・リリースを実行
 echo "==> タグ ${TAG} を作成して push します..."
 git tag "$TAG"
-git push origin "$TAG"
+git push origin main "$TAG"
 
 echo ""
 echo "==> タグ ${TAG} を push しました。"

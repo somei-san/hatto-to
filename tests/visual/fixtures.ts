@@ -128,6 +128,9 @@ async function injectSettingsMock(
         emit: async () => {},
         listen: async () => () => {},
       },
+      app: {
+        getVersion: async () => "0.1.0",
+      },
       webviewWindow: {
         getCurrentWebviewWindow: () => ({
           close: async () => { (window as any).__closeWasCalled = true; },

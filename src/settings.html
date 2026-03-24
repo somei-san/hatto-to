@@ -4,16 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>設定 / ヘルプ — 貼っとっと</title>
+<link rel="stylesheet" href="colors.css" />
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --yellow-bar: #F9E97A;
-    --blue-bar:   #7FB3E0;
-    --green-bar:  #8CC98F;
-    --pink-bar:   #E88FAB;
-    --purple-bar: #C48DD0;
-    --gray-bar:   #B8B8B8;
     --accent: #0066CC;
     --border: #E0E0E0;
     --text: #1A1A1A;
@@ -499,6 +494,7 @@
   <button class="save-btn" id="save-btn" disabled>保存</button>
 </div>
 
+<script src="utils.js"></script>
 <script>
   const { invoke } = window.__TAURI__.core;
   const { emit, listen } = window.__TAURI__.event;
@@ -626,7 +622,7 @@
       getCurrentWebviewWindow().close();
     } catch (e) {
       console.error('設定の保存に失敗しました:', e);
-      alert('設定の保存に失敗しました。\n' + e);
+      showToast('設定の保存に失敗しました');
     }
   });
 

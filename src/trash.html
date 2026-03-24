@@ -4,22 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ゴミ箱 — 貼っとっと</title>
+<link rel="stylesheet" href="colors.css" />
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --yellow:     #FFF9C4;
-    --yellow-bar: #F9E97A;
-    --blue:       #BBDEFB;
-    --blue-bar:   #7FB3E0;
-    --green:      #C8E6C9;
-    --green-bar:  #8CC98F;
-    --pink:       #F8BBD0;
-    --pink-bar:   #E88FAB;
-    --purple:     #E1BEE7;
-    --purple-bar: #C48DD0;
-    --gray:       #E0E0E0;
-    --gray-bar:   #B8B8B8;
     --accent: #0066CC;
     --border: #E0E0E0;
     --text: #1A1A1A;
@@ -166,23 +155,6 @@
     outline-offset: 2px;
   }
 
-  /* ── Toast Notification ──────────────────────────── */
-  .toast {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    background: #D32F2F;
-    color: #fff;
-    font-size: 13px;
-    padding: 8px 16px;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    z-index: 99999;
-    pointer-events: none;
-  }
-  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -192,21 +164,10 @@
   </div>
   <div class="list" id="list" role="list" aria-label="削除した付箋"></div>
 
+<script src="utils.js"></script>
 <script>
   const { invoke } = window.__TAURI__.core;
   const listEl = document.getElementById('list');
-
-  function showToast(msg) {
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
-      el.classList.remove('show');
-      el.addEventListener('transitionend', () => el.remove());
-    }, 3000);
-  }
 
   function colorVar(color) {
     const map = {
@@ -214,10 +175,6 @@
       pink: '#E88FAB', purple: '#C48DD0', gray: '#B8B8B8',
     };
     return map[color] || map.yellow;
-  }
-
-  function escapeHtml(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function formatDeletedAt(ts) {

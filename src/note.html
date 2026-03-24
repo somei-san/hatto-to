@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Note</title>
+<link rel="stylesheet" href="colors.css" />
 <style>
   /* ── Reset & Base ─────────────────────────────────── */
   *, *::before, *::after {
@@ -11,20 +12,6 @@
   }
 
   :root {
-    /* macOS Stickies palette */
-    --yellow:     #FFF9C4;
-    --yellow-bar: #F9E97A;
-    --blue:       #BBDEFB;
-    --blue-bar:   #7FB3E0;
-    --green:      #C8E6C9;
-    --green-bar:  #8CC98F;
-    --pink:       #F8BBD0;
-    --pink-bar:   #E88FAB;
-    --purple:     #E1BEE7;
-    --purple-bar: #C48DD0;
-    --gray:       #E0E0E0;
-    --gray-bar:   #B8B8B8;
-
     --bg: var(--yellow);
     --bar: var(--yellow-bar);
     --text: #3E3A2E;
@@ -358,22 +345,6 @@
   }
 
   /* ── Toast Notification ──────────────────────────── */
-  .toast {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    background: #D32F2F;
-    color: #fff;
-    font-size: 13px;
-    padding: 8px 16px;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    z-index: 99999;
-    pointer-events: none;
-  }
-  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -417,6 +388,7 @@
   </div>
 
 
+<script src="utils.js"></script>
 <script src="markdown.js"></script>
 <script>
   // ── Globals ───────────────────────────────────────
@@ -424,18 +396,6 @@
   const { listen } = window.__TAURI__.event;
   const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
   const appWindow = getCurrentWebviewWindow();
-
-  function showToast(msg) {
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
-      el.classList.remove('show');
-      el.addEventListener('transitionend', () => el.remove());
-    }, 3000);
-  }
 
   const params = new URLSearchParams(window.location.search);
   const noteId = params.get('id');
@@ -495,12 +455,6 @@
     noteEl.style.setProperty('--bar', `var(--${color}-bar)`);
 
     document.querySelectorAll('.color-dot').forEach(d => {
-      const selected = d.dataset.color === color;
-      d.classList.toggle('active', selected);
-      d.setAttribute('aria-checked', String(selected));
-      d.setAttribute('tabindex', selected ? '0' : '-1');
-    });
-    document.querySelectorAll('.cm-color-dot').forEach(d => {
       const selected = d.dataset.color === color;
       d.classList.toggle('active', selected);
       d.setAttribute('aria-checked', String(selected));
@@ -657,7 +611,7 @@
     }
     rawContent = lines.join('\n');
     editor.innerText = rawContent;
-    invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => console.error('save failed:', e));
+    invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
     // DOM の該当チェックボックス要素だけ更新（全体再レンダリング不要）
     const span = e.target.closest('.md-check');
     if (span) {
@@ -679,7 +633,7 @@
     if (next === currentZoom) return;
     currentZoom = next;
     applyZoom(next);
-    invoke('update_note_zoom', { id: noteId, zoom: next }).catch(e => console.error('save failed:', e));
+    invoke('update_note_zoom', { id: noteId, zoom: next }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
   }
 
   // ── Markdown auto-continue on Enter ─────────────
@@ -962,7 +916,7 @@
     rawContent = editor.innerText.replace(/\u00A0/g, ' ');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => console.error('save failed:', e));
+      invoke('update_note_content', { id: noteId, content: rawContent }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
     }, 300);
   });
 
@@ -996,7 +950,7 @@
           y: lpos.y,
           width: lsize.width,
           height: lsize.height,
-        }).catch(e => console.error('save failed:', e));
+        }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
       } catch (e) {
         // Window might be closing
       }
@@ -1022,7 +976,7 @@
     dot.addEventListener('click', () => {
       const color = dot.dataset.color;
       applyColor(color);
-      invoke('update_note_color', { id: noteId, color }).catch(e => console.error('save failed:', e));
+      invoke('update_note_color', { id: noteId, color }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
       picker.classList.remove('open');
     });
   });
@@ -1041,7 +995,7 @@
   function resetZoom() {
     currentZoom = 100;
     applyZoom(100);
-    invoke('update_note_zoom', { id: noteId, zoom: 100 }).catch(e => console.error('save failed:', e));
+    invoke('update_note_zoom', { id: noteId, zoom: 100 }).catch(e => { console.error('save failed:', e); showToast('保存に失敗しました'); });
   }
 
   // Listen for zoom events from app menu (only apply to focused window)

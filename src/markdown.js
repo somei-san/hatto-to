@@ -1,9 +1,6 @@
 // ── Markdown rendering utilities ─────────────────────────────
 // Shared by note.html (preview) and tests (via window.renderMarkdown).
-
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// Depends on escapeHtml() from utils.js (loaded before this script).
 
 // Note: inlineMarkdown receives escapeHtml-processed strings.
 // This is intentional — HTML entities (e.g. &amp;) are treated as plain text

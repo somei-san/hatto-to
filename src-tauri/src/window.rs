@@ -12,12 +12,7 @@ const DEFAULT_POSITION: (f64, f64) = (120.0, 120.0);
 /// Create a new note with offset positioning and open its window.
 /// Shared by create_note command, app menu, and tray menu.
 pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note {
-    let default_color = state
-        .settings
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .default_color
-        .clone();
+    let default_color = state.settings.recover().default_color.clone();
     let color = resolve_color(&default_color);
     // Build note with offset — release notes lock before opening window
     let n = {
@@ -29,12 +24,13 @@ pub(crate) fn create_note_with_window(app: &AppHandle, state: &AppState) -> Note
         n
     };
     open_note_window(app, &n);
-    {
+    let snapshot = {
         let mut notes = state.notes.recover();
         notes.push(n.clone());
-        if let Err(e) = save_notes(&notes) {
-            eprintln!("save notes error: {}", e);
-        }
+        notes.clone()
+    };
+    if let Err(e) = save_notes(&snapshot) {
+        eprintln!("save notes error: {}", e);
     }
     n
 }

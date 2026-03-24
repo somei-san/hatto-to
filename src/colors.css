@@ -1,0 +1,15 @@
+/* ── Shared color palette (macOS Stickies) ────────────────── */
+:root {
+  --yellow:     #FFF9C4;
+  --yellow-bar: #F9E97A;
+  --blue:       #BBDEFB;
+  --blue-bar:   #7FB3E0;
+  --green:      #C8E6C9;
+  --green-bar:  #8CC98F;
+  --pink:       #F8BBD0;
+  --pink-bar:   #E88FAB;
+  --purple:     #E1BEE7;
+  --purple-bar: #C48DD0;
+  --gray:       #E0E0E0;
+  --gray-bar:   #B8B8B8;
+}

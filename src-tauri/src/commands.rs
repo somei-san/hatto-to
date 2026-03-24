@@ -14,12 +14,16 @@ use crate::window::{
 // ── Tauri Commands ──────────────────────────────────────────
 
 /// 指定 ID の付箋を検索し、クロージャで更新して保存する。
+/// Mutex ガードを早期に解放し、disk I/O 中に他の操作をブロックしない。
 fn update_note_field(state: &AppState, id: &str, f: impl FnOnce(&mut Note)) -> Result<(), String> {
-    let mut notes = state.notes.recover();
-    let note = notes.iter_mut().find(|n| n.id == id)
-        .ok_or_else(|| format!("note not found: {}", id))?;
-    f(note);
-    save_notes(&notes)
+    let snapshot = {
+        let mut notes = state.notes.recover();
+        let note = notes.iter_mut().find(|n| n.id == id)
+            .ok_or_else(|| format!("note not found: {}", id))?;
+        f(note);
+        notes.clone()
+    };
+    save_notes(&snapshot)
 }
 
 /// 指定 ID の付箋を返す。見つからない場合は `None`。
@@ -109,11 +113,12 @@ pub(crate) fn confirm_delete_if_needed(app: &AppHandle, state: &AppState) -> boo
 
 /// Move a note to trash and close its window.
 pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) -> Result<(), String> {
-    {
+    let (notes_snapshot, trash_snapshot) = {
         let mut notes = state.notes.recover();
         if let Some(pos) = notes.iter().position(|n| n.id == id) {
             let mut note = notes.remove(pos);
-            save_notes(&notes)?;
+            let notes_snap = notes.clone();
+            drop(notes);
             note.deleted_at = Some(
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -123,8 +128,18 @@ pub(crate) fn do_delete_note(id: &str, app: &AppHandle, state: &AppState) -> Res
             let mut trash = state.trash.recover();
             trash.push(note);
             enforce_trash_limit(&mut trash);
-            save_trash(&trash)?;
+            let trash_snap = trash.clone();
+            drop(trash);
+            (Some(notes_snap), Some(trash_snap))
+        } else {
+            (None, None)
         }
+    };
+    if let Some(ns) = &notes_snapshot {
+        save_notes(ns)?;
+    }
+    if let Some(ts) = &trash_snapshot {
+        save_trash(ts)?;
     }
     if let Some(win) = app.get_webview_window(&format!("note-{}", id)) {
         let _ = win.close();
@@ -164,22 +179,28 @@ pub(crate) fn restore_note(
     app: AppHandle,
     state: State<AppState>,
 ) -> Result<Option<Note>, String> {
-    let note = {
+    let (note, trash_snapshot) = {
         let mut trash = state.trash.recover();
         if let Some(pos) = trash.iter().position(|n| n.id == id) {
             let note = trash.remove(pos);
-            save_trash(&trash)?;
-            Some(note)
+            let snap = trash.clone();
+            (Some(note), Some(snap))
         } else {
-            None
+            (None, None)
         }
     };
+    if let Some(ts) = &trash_snapshot {
+        save_trash(ts)?;
+    }
     if let Some(mut note) = note {
         note.deleted_at = None;
         open_note_window(&app, &note);
-        let mut notes = state.notes.recover();
-        notes.push(note.clone());
-        save_notes(&notes)?;
+        let notes_snapshot = {
+            let mut notes = state.notes.recover();
+            notes.push(note.clone());
+            notes.clone()
+        };
+        save_notes(&notes_snapshot)?;
         Ok(Some(note))
     } else {
         Ok(None)
@@ -189,9 +210,11 @@ pub(crate) fn restore_note(
 /// ゴミ箱を空にする。
 #[tauri::command]
 pub(crate) fn empty_trash(state: State<AppState>) -> Result<(), String> {
-    let mut trash = state.trash.recover();
-    trash.clear();
-    save_trash(&trash)
+    {
+        let mut trash = state.trash.recover();
+        trash.clear();
+    }
+    save_trash(&[])
 }
 
 /// 現在の設定を返す。
@@ -214,16 +237,19 @@ pub(crate) fn update_settings(
     confirm_before_delete: bool,
     state: State<AppState>,
 ) -> Result<(), String> {
-    let mut settings = state.settings.recover();
-    settings.default_color = default_color;
-    settings.opacity = opacity.clamp(20, 100);
-    settings.edit_on_single_click = edit_on_single_click;
-    settings.bring_all_to_front = bring_all_to_front;
-    settings.show_pin_button = show_pin_button;
-    settings.show_new_button = show_new_button;
-    settings.show_color_button = show_color_button;
-    settings.confirm_before_delete = confirm_before_delete;
-    save_settings(&settings)
+    let snapshot = {
+        let mut settings = state.settings.recover();
+        settings.default_color = default_color;
+        settings.opacity = opacity.clamp(20, 100);
+        settings.edit_on_single_click = edit_on_single_click;
+        settings.bring_all_to_front = bring_all_to_front;
+        settings.show_pin_button = show_pin_button;
+        settings.show_new_button = show_new_button;
+        settings.show_color_button = show_color_button;
+        settings.confirm_before_delete = confirm_before_delete;
+        settings.clone()
+    };
+    save_settings(&snapshot)
 }
 
 /// 設定ウィンドウを開く（既に開いている場合はフォーカスを移す）。
@@ -447,14 +473,20 @@ pub(crate) fn handle_context_menu_event(app: &AppHandle, event_id: &str) {
             if !COLOR_DEFS.iter().any(|c| c.key == color) {
                 return;
             }
-            let mut notes = state.notes.recover();
-            if let Some(note) = notes.iter_mut().find(|n| n.id == note_id) {
-                note.color = color.to_string();
-                if let Err(e) = save_notes(&notes) {
+            let snapshot = {
+                let mut notes = state.notes.recover();
+                if let Some(note) = notes.iter_mut().find(|n| n.id == note_id) {
+                    note.color = color.to_string();
+                    Some(notes.clone())
+                } else {
+                    None
+                }
+            };
+            if let Some(snap) = snapshot {
+                if let Err(e) = save_notes(&snap) {
                     eprintln!("save notes error: {}", e);
                 }
             }
-            drop(notes);
             if let Some(w) = &win {
                 let _ = w.emit_to(w.label(), "ctx-apply-color", color);
             }

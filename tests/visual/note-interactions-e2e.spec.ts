@@ -291,28 +291,7 @@ test.describe.skip("コンテキストメニュー：ピン留めトグル", () 
   });
 });
 
-// ── 8. コンテキストメニュー：カラー変更 ──────────────────────
-
-test.describe.skip("コンテキストメニュー：カラー変更", () => {
-  test("コンテキストメニューから色を変更 → --bg CSS変数が変わる", async ({ openNote }) => {
-    const page = await openNote({ content: "テスト", color: "yellow" });
-    await page.click(".markdown-view");
-    await expect(page.locator(".editor")).toBeVisible();
-
-    await page.click(".editor", { button: "right" });
-    await expect(page.locator(".context-menu.open")).toBeVisible();
-
-    // blueを選択
-    await page.click('.cm-color-dot[data-color="blue"]');
-
-    const bg = await page.evaluate(() => {
-      return document.querySelector(".note")!.style.getPropertyValue("--bg");
-    });
-    expect(bg).toBe("var(--blue)");
-  });
-});
-
-// ── 9. ピン留めボタン ────────────────────────────────────────
+// ── 8. ピン留めボタン ────────────────────────────────────────
 
 test.describe("ピン留めボタン", () => {
   test("#btn-pin をクリック → .active が付く", async ({ openNote }) => {

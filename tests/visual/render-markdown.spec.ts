@@ -167,9 +167,9 @@ test.describe("renderMarkdown — ordered list auto-numbering", () => {
     expect(extractOrderNums(html)).toEqual(["1", "1", "1", "2", "2", "2"]);
   });
 
-  test("nested ordered items have margin-left for indentation", async ({ notePage }) => {
+  test("nested ordered items have indent class for indentation", async ({ notePage }) => {
     const html = await render(notePage, "1. top\n  1. nested");
-    expect(html).toContain('margin-left: 20px');
+    expect(html).toContain('md-indent-1');
   });
 });
 

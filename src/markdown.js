@@ -67,7 +67,7 @@ function renderMarkdown(text) {
     const spaces = indentMatch ? indentMatch[1].length : 0;
     const level = Math.floor(spaces / 2);
     const trimmedLine = spaces > 0 ? line.slice(spaces) : line;
-    const indentStyle = level > 0 ? ` style="margin-left: ${level * 20}px"` : '';
+    const indentClass = level > 0 ? ` md-indent-${Math.min(level, 5)}` : '';
 
     // Reset ordered list counters when line is not a numbered list
     if (!/^\d+\. /.test(trimmedLine)) {
@@ -76,11 +76,11 @@ function renderMarkdown(text) {
     }
 
     if (/^[-*] \[x\] /i.test(trimmedLine)) {
-      result.push(`<div class="md-check checked"${indentStyle}><input type="checkbox" checked data-line="${i}"><span>${inlineMarkdown(escapeHtml(trimmedLine.slice(6)))}</span></div>`);
+      result.push(`<div class="md-check checked${indentClass}"><input type="checkbox" checked data-line="${i}"><span>${inlineMarkdown(escapeHtml(trimmedLine.slice(6)))}</span></div>`);
       continue;
     }
     if (/^[-*] \[ \] /.test(trimmedLine)) {
-      result.push(`<div class="md-check"${indentStyle}><input type="checkbox" data-line="${i}"><span>${inlineMarkdown(escapeHtml(trimmedLine.slice(6)))}</span></div>`);
+      result.push(`<div class="md-check${indentClass}"><input type="checkbox" data-line="${i}"><span>${inlineMarkdown(escapeHtml(trimmedLine.slice(6)))}</span></div>`);
       continue;
     }
     if (level === 0 && trimmedLine.startsWith('### ')) {
@@ -100,11 +100,11 @@ function renderMarkdown(text) {
       continue;
     }
     if (/^[-*] /.test(trimmedLine)) {
-      result.push(`<div class="md-bullet"${indentStyle}>${inlineMarkdown(escapeHtml(trimmedLine.slice(2)))}</div>`);
+      result.push(`<div class="md-bullet${indentClass}">${inlineMarkdown(escapeHtml(trimmedLine.slice(2)))}</div>`);
       continue;
     }
     if (/^> /.test(trimmedLine)) {
-      result.push(`<div class="md-blockquote"${indentStyle}>${inlineMarkdown(escapeHtml(trimmedLine.slice(2)))}</div>`);
+      result.push(`<div class="md-blockquote${indentClass}">${inlineMarkdown(escapeHtml(trimmedLine.slice(2)))}</div>`);
       continue;
     }
     if (/^\d+\. /.test(trimmedLine)) {
@@ -122,14 +122,14 @@ function renderMarkdown(text) {
       }
       lastOrderedLevel = level;
       const displayNum = orderedCounters[level];
-      result.push(`<div class="md-ordered"${indentStyle}><span class="md-order-num">${displayNum}.</span> ${inlineMarkdown(escapeHtml(m[2]))}</div>`);
+      result.push(`<div class="md-ordered${indentClass}"><span class="md-order-num">${displayNum}.</span> ${inlineMarkdown(escapeHtml(m[2]))}</div>`);
       continue;
     }
     if (line === '') {
       result.push('<div class="md-empty"></div>');
       continue;
     }
-    result.push(`<div class="md-line"${indentStyle}>${inlineMarkdown(escapeHtml(trimmedLine))}</div>`);
+    result.push(`<div class="md-line${indentClass}">${inlineMarkdown(escapeHtml(trimmedLine))}</div>`);
   }
   // Handle unclosed code block
   if (inCodeBlock) {

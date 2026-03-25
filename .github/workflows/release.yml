@@ -100,4 +100,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Casks/hattotto.rb
           git commit -m "Update hattotto to ${VERSION}"
+          git pull --rebase
           git push

@@ -36,7 +36,18 @@ function parseImageAlt(altRaw) {
 // 正規表現と、コールバックが複雑なもの（画像・リンク・裸URL）のビルダー関数を共有し、
 // 2 つの経路で記法の解釈がずれないようにする。
 const CODE_RE = /`([^`]+)`/g;
-const BOLD_RE = /\*\*(.+?)\*\*/g;
+// 太字+斜体（***text***）は BOLD_RE/ITALIC_RE より先に解決する。先に BOLD_RE（非貪欲な
+// \*\*(.+?)\*\*）が "***x***" に当たると "**" + "*x" + "**" という部分マッチを拾って
+// <strong>*x</strong> + 余った "*" を作ってしまい、続く ITALIC_RE がその余った "*" と
+// </strong> 内部の "*" を誤ってペアにして <strong><em>x</strong></em>（不正なネスト）を
+// 生む。ちょうど 3 個連続する `*` を先に専用ステップで消費することでこの誤マッチを防ぐ
+// （4 個以上連続する場合は対象外で、そのまま BOLD_RE/ITALIC_RE に流れる）。
+// 中身が `*` で始まる・終わる場合も同じ理由で対象外にする（`(?!\*)`/`(?<!\*)`）: これが無いと
+// `*` の連続だけの行・区間（例: "******"）でも中身に `*` を含む部分マッチが成立してしまい、
+// 同じ不正ネストが起きる。この制約により中身が空のマーカー対もマッチしなくなる
+// （`(.+?)` は 1 文字以上必須なので、中身が空なら最初から `*` で始まり `*` で終わるほかない）
+const BOLD_ITALIC_RE = /\*\*\*(?!\*)(.+?)(?<!\*)\*\*\*/g;
+const BOLD_RE = /\*\*(?!\*)(.+?)(?<!\*)\*\*/g;
 const ITALIC_RE = /\*([^*]+)\*/g;
 const DEL_RE = /~~([^~]+)~~/g;
 const IMAGE_RE = /!\[([^\]]*)\]\(([^)\s]+)\)/g;
@@ -71,6 +82,9 @@ function buildBareUrlHtml(pre, url) {
 function buildStrongHtml(inner) {
   return `<strong>${inner}</strong>`;
 }
+function buildStrongEmHtml(inner) {
+  return `<strong><em>${inner}</em></strong>`;
+}
 function buildEmHtml(inner) {
   return `<em>${inner}</em>`;
 }
@@ -83,6 +97,7 @@ function buildDelHtml(inner) {
 // コピーなので、その範囲（現在の state.text 上の [start, end)）を返す。画像のように
 // alt/src が属性にしか現れない記法は contentRange を渡さない（常に非トラッキング）
 function codeContentRange(m) { return { start: m.index + 1, end: m.index + 1 + m[1].length }; }
+function boldItalicContentRange(m) { return { start: m.index + 3, end: m.index + 3 + m[1].length }; }
 function boldContentRange(m) { return { start: m.index + 2, end: m.index + 2 + m[1].length }; }
 function italicContentRange(m) { return { start: m.index + 1, end: m.index + 1 + m[1].length }; }
 function delContentRange(m) { return { start: m.index + 2, end: m.index + 2 + m[1].length }; }
@@ -93,14 +108,23 @@ function bareUrlContentRange(m) { return { start: m.index, end: m.index + m[0].l
 /**
  * escapeHtml 済みの文字列からインライン装飾を解決する。note.js の描画パス本体で、
  * 呼び出し頻度が高いためオフセット追跡は一切行わない素の逐次置換チェーン。
+ *
+ * 水平線（hr、classifyLine が判定する `***`/`* * *` 等）の raw はここでも装飾解釈を一切
+ * 行わず、恒等（そのまま）で返す: hr は行全体が可視 = raw の恒等写像であるべきで、装飾記法の
+ * 一部（例: `* * *` の "* *" が ITALIC_RE にマッチする）に化けさせない。inlineSegments 側にも
+ * 同じ判定があり、両者は常に一致させる（inlineMarkdown/inlineSegments 二経路の出力一致の
+ * 不変条件を hr でも保つ）。
  */
 function inlineMarkdown(escaped) {
+  if (classifyLine(escaped).type === 'hr') return escaped;
   // `code` → placeholder (protect from bold/italic/strikethrough)
   const codeBlocks = [];
   escaped = escaped.replace(CODE_RE, (_, c) => {
     codeBlocks.push(c);
     return '\x00CODE' + (codeBlocks.length - 1) + '\x00';
   });
+  // ***bold+italic*** → <strong><em>（BOLD_RE/ITALIC_RE より先。BOLD_ITALIC_RE のコメント参照）
+  escaped = escaped.replace(BOLD_ITALIC_RE, (_, inner) => buildStrongEmHtml(inner));
   // **bold** → <strong>
   escaped = escaped.replace(BOLD_RE, (_, inner) => buildStrongHtml(inner));
   // *italic* → <em> (after bold to avoid conflict)
@@ -165,7 +189,7 @@ function computeContent(comp, contentRange, grp, srcIdx, groupSpans, matches) {
 }
 
 /**
- * comp が属するステップの種類（'code'|'bold'|'italic'|'del'|'image'|'link'|'bareurl'）を求める。
+ * comp が属するステップの種類（'code'|'bolditalic'|'bold'|'italic'|'del'|'image'|'link'|'bareurl'）を求める。
  * インライン生表示（reveal）が「どの装飾か」を判定するのに使う（content と違い常に comp 全体に対して
  * 定まる。合併した comp は最後に被せたステップ、すなわち一番外側の装飾を指す）。
  * kind === 'inherit'（コード復元ステップ）は、comp がプレースホルダ全体＝直前ステップの単一 group と
@@ -368,7 +392,7 @@ function stripTagsQuoteAware(html) {
 // インライン生表示（reveal）で「マーカーごと生 raw を見せてよい」装飾の種類。画像は raw が
 // alt/src の属性にしか現れず見せても意味がなく、裸URLはそもそも raw === 可視テキストで
 // 隠れているマーカーが無いため対象外にする。
-const REVEALABLE_KINDS = new Set(['code', 'bold', 'italic', 'del', 'link']);
+const REVEALABLE_KINDS = new Set(['code', 'bold', 'italic', 'bolditalic', 'del', 'link']);
 function isRevealableKind(kind) {
   return REVEALABLE_KINDS.has(kind);
 }
@@ -384,7 +408,7 @@ function isRevealableKind(kind) {
  *     raw オフセット charMap.srcStart + i に厳密対応する（対称マーカーの装飾・リンクラベル・
  *     裸URLで、ネストした装飾を含まない場合のみ）。null は画像・ネスト装飾など、
  *     可視文字と raw 位置が 1:1 対応しない（呼び出し側は srcStart/srcEnd への丸めに頼る）
- *   - kind は 'code'|'bold'|'italic'|'del'|'image'|'link'|'bareurl'|null（プレーンテキスト）。
+ *   - kind は 'code'|'bolditalic'|'bold'|'italic'|'del'|'image'|'link'|'bareurl'|null（プレーンテキスト）。
  *     isRevealableKind(kind) が true のセグメントだけが reveal 対象になりうる
  * srcStart/srcEnd は「トップレベルの構成要素」単位（ネストした装飾は外側 1 セグメントの html に含まれる）。
  *
@@ -393,8 +417,22 @@ function isRevealableKind(kind) {
  *   [reveal.start, reveal.end) にちょうど一致する reveal 対象セグメント（isRevealableKind）を、
  *   装飾変換を通さない生テキストの html（charMap は raw への恒等写像）に差し替える。一致する
  *   セグメントが無ければ何もしない（インライン生表示の描画・写像が reveal 状態を考慮するのに使う）
+ *
+ * raw が水平線（hr、classifyLine が判定する `***`/`* * *` 等）なら、reveal に関わらず装飾解釈を
+ * 一切行わず raw 全体を 1 セグメント（charMap は raw への恒等写像）で返す。hr は行全体が
+ * 可視 = raw であるべきで、`* * *` の "* *" が ITALIC_RE にマッチする等で装飾記法の一部に
+ * 化けてはいけない。visibleOffsetToRawOffset・visibleOffsetFromRawOffset・revealTargetAt・
+ * inlineVisibleSlice はいずれもこの関数を経由するため、ここ 1 箇所の分岐で
+ * キャレット写像・reveal 判定・コピーのすべてに hr の恒等写像が行き渡る（呼び出し元ごとに
+ * 個別の hr 分岐を足さない）。
  */
 function inlineSegments(raw, reveal) {
+  if (classifyLine(raw).type === 'hr') {
+    return [{
+      srcStart: 0, srcEnd: raw.length, html: escapeHtml(raw), visibleText: raw,
+      charMap: { srcStart: 0, len: raw.length }, kind: null,
+    }];
+  }
   const { text: initialText, srcIdx: initialSrcIdx } = escapeAndTrackOffsets(raw);
   const state = {
     text: initialText,
@@ -409,6 +447,7 @@ function inlineSegments(raw, reveal) {
     codeBlocks.push(m[1]);
     return '\x00CODE' + (codeBlocks.length - 1) + '\x00';
   }, codeContentRange, 'code');
+  applyInlineStep(state, BOLD_ITALIC_RE, (m) => buildStrongEmHtml(m[1]), boldItalicContentRange, 'bolditalic');
   applyInlineStep(state, BOLD_RE, (m) => buildStrongHtml(m[1]), boldContentRange, 'bold');
   applyInlineStep(state, ITALIC_RE, (m) => buildEmHtml(m[1]), italicContentRange, 'italic');
   applyInlineStep(state, DEL_RE, (m) => buildDelHtml(m[1]), delContentRange, 'del');
@@ -486,6 +525,9 @@ function scanFenceRanges(lines) {
  * contentStart は trimmedLine 上でのマーカー長（renderInline に渡す内容の開始位置）。
  * trimmedLine.slice(contentStart) が renderInline に渡る内容と一致し、renderMarkdown・
  * lineConversionOccurred の双方がここから同じ値を引く（slice 幅の二重管理を避ける）。 */
+
+const HR_RE = /^([-*_])\s*(?:\1\s*){2,}$/;
+
 function classifyLine(line) {
   // インデントは 2 スペース単位。奇数分は切り捨てる（例: 半端な 3 スペースは level 1 のまま）。
   // タブ文字は非対応（スペースのみ見る）
@@ -499,7 +541,7 @@ function classifyLine(line) {
   else if (level === 0 && trimmedLine.startsWith('### ')) { type = 'h3'; contentStart = 4; }
   else if (level === 0 && trimmedLine.startsWith('## ')) { type = 'h2'; contentStart = 3; }
   else if (level === 0 && trimmedLine.startsWith('# ')) { type = 'h1'; contentStart = 2; }
-  else if (level === 0 && /^([-*_])\s*(?:\1\s*){2,}$/.test(trimmedLine)) { type = 'hr'; contentStart = trimmedLine.length; }
+  else if (level === 0 && HR_RE.test(trimmedLine)) { type = 'hr'; contentStart = trimmedLine.length; }
   else if (/^[-*] /.test(trimmedLine)) { type = 'bullet'; contentStart = 2; }
   else if (/^> /.test(trimmedLine)) { type = 'quote'; contentStart = 2; }
   else if (/^\d+\. /.test(trimmedLine)) { type = 'ordered'; contentStart = trimmedLine.match(/^\d+\. /)[0].length; }
@@ -552,8 +594,12 @@ function renderInline(text, revealRange) {
  * @param {{line: number, start: number, end: number} | null} [reveal] インライン生表示の
  *   対象行・範囲（start/end はその行のマーカーを除いた内容上の raw オフセット）。指定した行の
  *   一致する装飾セグメントだけ生 raw で表示する（renderInline 参照）。
+ * @param {Set<number> | null} [hrRevealLines] 水平線（hr）を <hr> の代わりに生 raw のテキスト行
+ *   として表示する行番号の集合。<hr> は contenteditable の着地点を持たないため、選択の
+ *   anchor/focus がその行に乗っているあいだだけ描画を切り替える（note.js 側の管理）。
+ *   reveal と違い、この集合は非 collapsed 選択の間も両端点ぶん複数行を保持できる。
  */
-function renderMarkdown(text, reveal) {
+function renderMarkdown(text, reveal, hrRevealLines) {
   if (!text) {
     // window.I18N を読み込まずに renderMarkdown 単体を呼ぶ場面（テスト・node 環境等）でも壊れないようフォールバックする
     const placeholder = (typeof window !== 'undefined' && window.I18N) ? window.I18N.t('notePlaceholder') : 'メモを入力…';
@@ -619,7 +665,16 @@ function renderMarkdown(text, reveal) {
       continue;
     }
     if (type === 'hr') {
-      result.push(`<hr class="md-hr" data-line="${i}">`);
+      // 選択の端点が乗っている間だけ生 raw のテキスト行として表示する: <hr> は
+      // contenteditable の着地点を持たず、その間はキャレットを置けない・編集できないため。
+      // renderInline（inlineMarkdown/inlineSegments）を経由せず escapeHtml(line) だけを使う:
+      // hr は行全体が可視 = raw の恒等写像であるべきで、trim 済みの trimmedLine ではなく
+      // 行そのもの（hr は level 0 前提のため実質同じだが、意図を明示する）を渡す
+      if (hrRevealLines && hrRevealLines.has(i)) {
+        result.push(`<div class="md-line md-reveal${indentClass}" data-line="${i}">${escapeHtml(line)}</div>`);
+      } else {
+        result.push(`<hr class="md-hr" data-line="${i}">`);
+      }
       continue;
     }
     if (type === 'bullet') {
@@ -664,6 +719,6 @@ function renderMarkdown(text, reveal) {
 if (typeof module !== 'undefined') {
   module.exports = {
     renderMarkdown, inlineMarkdown, inlineSegments, parseImageAlt, scanFenceRanges, isRevealableKind,
-    classifyLine, lineConversionOccurred, inlineKindCounts,
+    classifyLine, lineConversionOccurred, inlineKindCounts, CODE_RE,
   };
 }

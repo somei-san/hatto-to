@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 
 const { escapeHtml } = require("../../src/utils.js");
 global.escapeHtml = escapeHtml;
-const { lineConversionOccurred, inlineKindCounts } = require("../../src/markdown.js");
+const { lineConversionOccurred, inlineKindCounts, classifyLine } = require("../../src/markdown.js");
 
 // lineConversionOccurred は note.js の checkpointConversion（undo チェックポイントのトリガー）が
 // 使う純粋関数。before/after は checkpointConversion が渡す形（1 文字挿入の前後、改行を含まない
@@ -21,6 +21,29 @@ describe("lineConversionOccurred — ブロック種別ごとの変換検出", (
     { name: "チェックボックス補完: - [ ] → - [ ] ", before: "- [ ]", after: "- [ ] ", expected: true },
     { name: "チェック済み補完: - [x] → - [x] ", before: "- [x]", after: "- [x] ", expected: true },
     { name: "区切り線(hr): -- → ---", before: "--", after: "---", expected: true },
+    { name: "区切り線(hr): -- → * * *（空白入りの * は区切り線）", before: "--", after: "* * *", expected: true },
+  ];
+  for (const { name, before, after, expected } of cases) {
+    test(name, () => assert.equal(lineConversionOccurred(before, after), expected));
+  }
+});
+
+describe("classifyLine — 水平線（hr）は CommonMark どおり判定する", () => {
+  const hrCases = ["***", "****", "** **", "* * *", "---", "___"];
+  for (const line of hrCases) {
+    test(`${JSON.stringify(line)} は hr`, () => assert.equal(classifyLine(line).type, "hr"));
+  }
+
+  const nonHrCases = ["**a**", "-- -x"];
+  for (const line of nonHrCases) {
+    test(`${JSON.stringify(line)} は hr ではない`, () => assert.notEqual(classifyLine(line).type, "hr"));
+  }
+});
+
+describe("lineConversionOccurred — `*` だけの連続も区切り線として検出する", () => {
+  const cases = [
+    { name: "** → ***（text → hr）", before: "**", after: "***", expected: true },
+    { name: "*** → ****（hr → hr、種別は変わらない）", before: "***", after: "****", expected: false },
   ];
   for (const { name, before, after, expected } of cases) {
     test(name, () => assert.equal(lineConversionOccurred(before, after), expected));

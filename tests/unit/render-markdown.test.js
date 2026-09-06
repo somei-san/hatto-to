@@ -52,6 +52,11 @@ describe("renderMarkdown — inline & block elements", () => {
     assert.match(html, /<em>/);
   });
 
+  test("bold and italic combined (***text***) nests em inside strong", () => {
+    const html = renderMarkdown("***text***");
+    assert.match(html, /<strong><em>text<\/em><\/strong>/);
+  });
+
   test("strikethrough", () => {
     const html = renderMarkdown("~~text~~");
     assert.match(html, /<del>/);
@@ -85,6 +90,31 @@ describe("renderMarkdown — inline & block elements", () => {
   test("horizontal rule", () => {
     const html = renderMarkdown("---");
     assert.match(html, /<hr/);
+  });
+
+  // `*`/`-`/`_` の 3 個以上連続（間に空白があってもよい）はすべて水平線（CommonMark 準拠）。
+  // キャレットがその行にある間だけ生 raw のテキスト行として表示する（後述の
+  // "renderMarkdown — 水平線（hr）のインライン生表示" 参照）ため、水平線であること自体が
+  // ⌘B/⌘I が作る中身の空の強調マーカー対（`***`/`****` 等）と衝突しても編集できなくなることはない
+  test("asterisks-only lines become a horizontal rule (CommonMark)", () => {
+    assert.match(renderMarkdown("***"), /<hr/);
+    assert.match(renderMarkdown("****"), /<hr/);
+    assert.match(renderMarkdown("******"), /<hr/);
+    assert.match(renderMarkdown("** **"), /<hr/);
+  });
+
+  test("dashes/underscores-only lines still become a horizontal rule", () => {
+    assert.match(renderMarkdown("---"), /<hr/);
+    assert.match(renderMarkdown("____"), /<hr/);
+  });
+
+  test("space-separated asterisks still become a horizontal rule", () => {
+    assert.match(renderMarkdown("* * *"), /<hr/);
+  });
+
+  test("not a horizontal rule: content mixed in with the marker chars", () => {
+    assert.doesNotMatch(renderMarkdown("**a**"), /<hr/);
+    assert.doesNotMatch(renderMarkdown("-- -x"), /<hr/);
   });
 
   test("empty string returns placeholder", () => {
@@ -223,6 +253,21 @@ describe("renderMarkdown — edge cases", () => {
     const html = renderMarkdown("<script>alert(1)</script>");
     assert.doesNotMatch(html, /<script>/);
     assert.match(html, /&lt;script&gt;/);
+  });
+
+  // 中身が空のマーカー対（例: ⌘B を打った直後でまだ内容が無い状態）は、行内の他の文字に隣接して
+  // いれば装飾に化けずリテラルのまま描画される。行がマーカーだけで完結する場合（`****` 単体等）は
+  // 水平線記法（`***`/`---`/`___` の 3 個以上連続）と区別が付かないため対象外（別問題）
+  test("empty marker pairs stay literal when adjacent to other text on the line", () => {
+    assert.match(renderMarkdown("a****b"), /^<div[^>]*>a\*\*\*\*b<\/div>$/);
+    assert.match(renderMarkdown("a**b"), /^<div[^>]*>a\*\*b<\/div>$/);
+    assert.match(renderMarkdown("a``b"), /^<div[^>]*>a``b<\/div>$/);
+    assert.match(renderMarkdown("a~~~~b"), /^<div[^>]*>a~~~~b<\/div>$/);
+  });
+
+  test("space-only content between ** stays a valid (if unusual) bold element", () => {
+    const html = renderMarkdown("a** **b");
+    assert.match(html, /<strong> <\/strong>/);
   });
 });
 
@@ -427,5 +472,51 @@ describe("renderMarkdown — インライン生表示（reveal）", () => {
 
   test("reveal 未指定時は挙動が変わらない（既存呼び出しとの後方互換）", () => {
     assert.equal(renderMarkdown("**bold**"), renderMarkdown("**bold**", null));
+  });
+});
+
+describe("renderMarkdown — 水平線（hr）のインライン生表示", () => {
+  // <hr> は contenteditable の着地点を持たないため、選択の端点がその行に乗っているあいだは
+  // 行全体を生 raw のテキスト行として表示し、離れると <hr> に戻す。inlineSegments の reveal
+  // （revealState、collapsed キャレット専用）とは別の第 3 引数 hrRevealLines（行番号の Set）で
+  // 管理する: 非 collapsed 選択の間も両端点ぶん複数行を保持できる必要があるため
+  test("hrRevealLines に含まれる hr 行は <hr> ではなく生 raw のテキスト行になる", () => {
+    const html = renderMarkdown("***", null, new Set([0]));
+    assert.doesNotMatch(html, /<hr/);
+    assert.match(html, /class="md-line md-reveal"/);
+    assert.match(html, />\*\*\*</);
+  });
+
+  test("hrRevealLines に含まれない hr 行は通常どおり <hr> になる", () => {
+    const html = renderMarkdown("a\n***", null, new Set([0]));
+    assert.match(html, /<hr/);
+  });
+
+  test("複数行を同時に生表示できる（非 collapsed 選択の両端点）", () => {
+    const html = renderMarkdown("***\nx\n***", null, new Set([0, 2]));
+    assert.equal((html.match(/<hr/g) || []).length, 0);
+    assert.equal((html.match(/class="md-line md-reveal"/g) || []).length, 2);
+  });
+
+  test("hrRevealLines 未指定時は従来どおり <hr> のまま", () => {
+    assert.match(renderMarkdown("***"), /<hr/);
+  });
+
+  // 生表示は escapeHtml(line) を直接使い renderInline（inlineMarkdown/inlineSegments）を経由
+  // しない。先頭に空白がある " ---" は markerLength が 0（hr はマーカー無し）なので DOM の
+  // 可視文字数と raw の文字数が完全に一致する必要があり、trimmedLine（インデント除去後）ではなく
+  // 行全体を渡さないと空白分だけずれる
+  test("先頭に空白がある水平線も raw と 1 文字も違わずそのまま表示される", () => {
+    const html = renderMarkdown(" ---", null, new Set([0]));
+    assert.match(html, /> ---</);
+  });
+
+  // "* * *" は ITALIC_RE（/\*([^*]+)\*/）が "* *" を "*" + " " + "*" として拾ってしまうため、
+  // renderInline 経由（inlineMarkdown）だとマーカーが消えて <em> </em> * に化ける。escapeHtml
+  // 直書きならこの装飾解釈自体が起こらない
+  test("space-separated asterisks の水平線はマーカーが消えず raw のまま表示される", () => {
+    const html = renderMarkdown("* * *", null, new Set([0]));
+    assert.doesNotMatch(html, /<em>/);
+    assert.match(html, />\* \* \*</);
   });
 });

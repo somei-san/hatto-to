@@ -1,6 +1,6 @@
 import { test, expect, injectNoteMock, selectMarkdownRange } from "./fixtures";
 
-// 描画部分（markdown-view）のテキスト選択に対するコピー挙動（issue #70）。
+// 描画部分（markdown-view）のテキスト選択に対するコピー挙動。
 // - 通常コピー（⌘C 相当）: text/html（装飾付き）と text/plain を同時にクリップボードへ載せる。
 //   text/plain は行構造（インデント・リスト記号・チェックボックス記法・コードフェンス・
 //   --- ・> ・# 見出しマーカー）は raw のまま残し、インライン装飾（**太字** 等）だけを

@@ -11,6 +11,11 @@ function blockOffset(blockLines, idx, col) {
 
 /** 行頭マーカー（インデント・見出し・リスト・引用）の文字数。 */
 function markerLength(line) {
+  // `- - -`/`* * *` のような空白入りの水平線は、先頭だけ見るとリストマーカー（`- `/`* `）に
+  // 見えてしまうが、classifyLine はこの形を hr と判定しており（HR_RE がリストの判定より先に
+  // 検査される）hr 行にリストマーカーは無い。ここで hr を先に弾かないと、hr 行の raw 列と
+  // 内容列の対応がリストマーカー分だけずれる
+  if (classifyLine(line).type === 'hr') return 0;
   const indent = line.match(/^ */)[0].length;
   // 見出しはインデントが無いときだけ markdown.js が記号を剥がす
   const marker = indent === 0
@@ -198,6 +203,48 @@ function revealTargetAt(inlineRaw, col) {
   return null;
 }
 
+/**
+ * inlineRaw 中のコードスパン（`` `...` ``）の raw 範囲（マーカー込み、[start, end)）を列挙する。
+ * markdown.js の CODE_RE（inlineMarkdown/inlineSegments と共有）を素の raw テキストへ直接
+ * 適用するだけで、inlineSegments を経由しない。inlineSegments はコードスパンが他の装飾の
+ * 内側に入れ子になっていると、外側の装飾 1 セグメント（例: `**`abc`**` → kind: 'bold',
+ * charMap: null）にまとめてしまい `kind === 'code'` が表に出てこない。CODE_RE は raw の
+ * バッククォート対を見るだけなので、そのような入れ子でも取りこぼさない。
+ *
+ * @param {string} inlineRaw マーカーを除いた raw 行の残り
+ * @returns {{ start: number, end: number }[]}
+ */
+function scanCodeSpans(inlineRaw) {
+  return [...inlineRaw.matchAll(CODE_RE)].map((m) => ({ start: m.index, end: m.index + m[0].length }));
+}
+
+/**
+ * 選択 [start, end)（inlineRaw 上の raw オフセット）が、いずれかのコードスパンの一部にだけ
+ * 触れている（スパンをちょうど丸ごと覆ってはいない）か。note.js の wrappableLineRange・
+ * toggleEmphasisShortcut が、マーカー打鍵での周期送り・⌘B/⌘I トグルをコードスパンに対して
+ * 対象外にするのに使う: コードスパンの中身はリテラルなテキストで、`` ` `` を打つと
+ * `` `abc` `` の "b" を選んで打った場合に `` `a`b`c` `` とスパンが割れてしまう。
+ *
+ * 対象外にする条件は「重なりがあり、かつスパン全体を覆ってはいない」: 重なりが無ければ
+ * 無関係、スパンをちょうど丸ごと覆う選択（[start, end) === [span.start, span.end)）は
+ * 装飾自体をトグルする操作として引き続き対象にする（`` ` `` で解除できる）。スパンの片側
+ * だけに触れる選択・スパンの内側（マーカー間）に完全に収まる選択・collapsed キャレット
+ * （start === end）がマーカーの内側にある場合は、いずれもこの条件で対象外になる。
+ *
+ * @param {string} inlineRaw マーカーを除いた raw 行の残り
+ * @param {number} start inlineRaw 上の raw オフセット
+ * @param {number} end
+ * @returns {boolean}
+ */
+function rangeTouchesCodeSpan(inlineRaw, start, end) {
+  return scanCodeSpans(inlineRaw).some((span) => {
+    const overlaps = start < span.end && end > span.start;
+    if (!overlaps) return false;
+    const covers = start <= span.start && end >= span.end;
+    return !covers;
+  });
+}
+
 // ── 選択削除・置換のマーカー保存 ─────────────────────────
 // 装飾のマーカー（`**`・`` ` ``・`~~`・`[`〜`](url)`）と内容は不可分な 1 つの記法で、選択が
 // 内容の一部だけに触れている（装飾全体を覆っていない）ときにマーカーごと削除すると、開き・
@@ -339,11 +386,166 @@ function widenRangeForEmptiedDecorations(lineText, lo, hi, markerLen = markerLen
   return { lo: inlineLo + markerLen, hi: inlineHi + markerLen };
 }
 
+// ── 選択範囲を記法で包む／トグルする ─────────────────────
+// direct-edit（note.js の beforeinput ディスパッチャ）が、単一行の非 collapsed 選択に
+// マーカー文字（`*`/`` ` ``/`~`）を打った・⌘B/⌘I を押したときに使う。行またぎ・フェンス
+// 内容行の判定は findBlock（DOM 依存）が要るため note.js 側で行い、ここでは raw 行文字列と
+// 列範囲だけを受け取る。
+//
+// 判定（選択の両側に何個マーカーが付いているか＝lead/trail）は resolveMarkerRun 1 つに集約し、
+// ⌘B/⌘I（常に `*`）とマーカー打鍵（`*`/`` ` ``/`~`）の両方で共有する。書き換え方針だけが違う:
+// ⌘B/⌘I は本数を「増減」する（nextEmphasisRun）のに対し、マーカー打鍵は「周期」を進める
+// （nextMarkerCycle）。この 2 つの後段の違いは rewriteMarkerRun（区間の書き換え自体は共通）へ
+// 渡す nextN の決め方の違いでしかない。
+
+function markerRunBefore(text, pos, marker) {
+  let n = 0;
+  while (pos - n - 1 >= 0 && text[pos - n - 1] === marker) n++;
+  return n;
+}
+
+function markerRunAfter(text, pos, marker) {
+  let n = 0;
+  while (pos + n < text.length && text[pos + n] === marker) n++;
+  return n;
+}
+
+/**
+ * 選択 [start, end) の「中身」と、その両側に既についている marker 文字の連続数（lead/trail）を
+ * 求める。可視の装飾テキスト全体をドラッグした選択は raw 範囲がマーカー込みになる（例:
+ * `**x**` を可視の "x" ごとドラッグすると raw 選択は `**x**` 全体）ため、まず選択そのものが
+ * 両端とも marker の連続で始まり終わっていて内側に中身が残るかを見る。ただし選択が複数の装飾を
+ * 覆っている場合（例: `**a** b **c**` 全体）は、両端の marker 連続を lead/trail として中身を
+ * 取り出すと無関係な開き・閉じマーカーをペア扱いして記法を壊す（`a** b **c` のように中間の
+ * マーカーが割れて残る）。中身候補に marker が 1 つも残らない（＝単一の装飾を丸ごと選択した）
+ * ときだけこの内側判定を採用し、そうでなければ選択の外側に隣接する marker の連続を lead/trail
+ * とする（マーカーの外側だけを選んだ通常の選択と同じ扱いになり、選択全体を新しい層で包むだけの
+ * 安全な操作に倒れる）。
+ *
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @param {string} marker 走査する 1 文字（`*`/`` ` ``/`~`）
+ * @returns {{ contentStart: number, contentEnd: number, lead: number, trail: number }}
+ */
+function resolveMarkerRun(text, start, end, marker) {
+  const slice = text.slice(start, end);
+  let lead = 0;
+  while (lead < slice.length && slice[lead] === marker) lead++;
+  let trail = 0;
+  while (trail < slice.length - lead && slice[slice.length - 1 - trail] === marker) trail++;
+  const inner = slice.slice(lead, slice.length - trail);
+  if (lead > 0 && trail > 0 && !inner.includes(marker)) {
+    return { contentStart: start + lead, contentEnd: end - trail, lead, trail };
+  }
+  return {
+    contentStart: start,
+    contentEnd: end,
+    lead: markerRunBefore(text, start, marker),
+    trail: markerRunAfter(text, end, marker),
+  };
+}
+
+/**
+ * resolveMarkerRun の結果から、対称に扱える n = min(lead, trail) 本の区間だけを nextN 本の
+ * marker で書き換える。lead/trail は非対称になりうる（例: 片側にだけ閉じていない marker が
+ * 隣接している場合）ため、揃わなかった側の余り（lead - n または trail - n 本）はこの書き換え
+ * 区間の外側にあり触れない。⌘B/⌘I のトグル・マーカー打鍵の周期送りの両方で共有する。
+ *
+ * @param {string} text
+ * @param {{ contentStart: number, contentEnd: number, lead: number, trail: number }} run
+ *   resolveMarkerRun の結果
+ * @param {number} nextN 書き換え後の本数
+ * @param {string} marker
+ * @returns {{ text: string, contentStart: number, contentEnd: number }}
+ */
+function rewriteMarkerRun(text, run, nextN, marker) {
+  const { contentStart, contentEnd, lead, trail } = run;
+  const n = Math.min(lead, trail);
+  const spanStart = contentStart - n;
+  const spanEnd = contentEnd + n;
+  const content = text.slice(contentStart, contentEnd);
+  const newText = text.slice(0, spanStart)
+    + marker.repeat(nextN) + content + marker.repeat(nextN)
+    + text.slice(spanEnd);
+  const newContentStart = spanStart + nextN;
+  return { text: newText, contentStart: newContentStart, contentEnd: newContentStart + content.length };
+}
+
+/**
+ * kind に応じてトグル対象にする `*` の本数を返す。⌘B は 2 個単位（2 個以上あれば外す、無ければ
+ * 足す）、⌘I は 1 個単位（奇数なら外す、偶数なら足す）。
+ *
+ * @param {number} n resolveMarkerRun の lead/trail の小さい方（rewriteMarkerRun に渡すのと同じ n）
+ * @param {'bold' | 'italic'} kind
+ * @returns {number} 新しい本数
+ */
+function nextEmphasisRun(n, kind) {
+  if (kind === 'bold') return n >= 2 ? n - 2 : n + 2;
+  return n % 2 === 1 ? n - 1 : n + 1;
+}
+
+/**
+ * 選択 [start, end) を挟む `*` をトグルする（⌘B/⌘I）。start === end（collapsed キャレット）でも
+ * そのまま使える: resolveMarkerRun は中身が空でもキャレットの前後に隣接する `*` の連続を
+ * lead/trail として拾うため、`**|**` へ ⌘B すると外れ、無地の位置なら `****` を挿入して
+ * 中央にキャレットを置く（rewriteMarkerRun の content が空文字になるだけで同じ計算式で扱える）。
+ *
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @param {'bold' | 'italic'} kind
+ * @returns {{ text: string, contentStart: number, contentEnd: number }}
+ */
+function toggleEmphasisMarkers(text, start, end, kind) {
+  const run = resolveMarkerRun(text, start, end, '*');
+  const nextN = nextEmphasisRun(Math.min(run.lead, run.trail), kind);
+  return rewriteMarkerRun(text, run, nextN, '*');
+}
+
+/**
+ * 選択に同じマーカー文字を打鍵したときの「次の本数」。装飾の有無をトグルするのではなく、
+ * マーカーごとに決まった周期を 1 打鍵ごとに進める（外側へ重ね続けない）:
+ *   - `*`: 0 → 1 → 2 → 3 → 0（3 を超える本数は defensive に 0 へ戻す）
+ *   - `` ` ``: 1 本以上あれば全部外す（0 へ）、無ければ 1 本で包む
+ *   - `~`: 2 本以上なら 2 本外す（余りはそのまま残る）、それ未満（0 または 1）なら 2 本で包む。
+ *     n=1（`~x~` のような、この機能では作られない状態）は「既存の 1 本の外側に足す」のではなく
+ *     n 本ぶん丸ごと新しい 2 本に置き換わる（rewriteMarkerRun が対称本数 n を書き換え区間その
+ *     ものにするため、余りという概念が生じない）
+ *
+ * @param {number} n resolveMarkerRun の lead/trail の小さい方
+ * @param {string} marker `*`/`` ` ``/`~`
+ * @returns {number} 新しい本数
+ */
+function nextMarkerCycle(n, marker) {
+  if (marker === '*') return n >= 3 ? 0 : n + 1;
+  if (marker === '`') return n >= 1 ? 0 : 1;
+  return n >= 2 ? n - 2 : 2; // '~'
+}
+
+/**
+ * 選択 [start, end) に marker を打鍵したときの周期送りを 1 回適用する（note.js の
+ * cycleSelectionMarker から呼ぶ）。
+ *
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @param {string} marker `*`/`` ` ``/`~`
+ * @returns {{ text: string, contentStart: number, contentEnd: number }}
+ */
+function cycleMarkerRun(text, start, end, marker) {
+  const run = resolveMarkerRun(text, start, end, marker);
+  const nextN = nextMarkerCycle(Math.min(run.lead, run.trail), marker);
+  return rewriteMarkerRun(text, run, nextN, marker);
+}
+
 // ブラウザでは module が未定義なので、この行は classic script の読み込みに影響しない
 if (typeof module !== 'undefined') {
   module.exports = {
     blockOffset, markerLength, getAutoPrefix, isEmptyListItem, CHECKBOX_RE, isImageOnlyLine,
     isCheckboxLine, visibleOffsetToRawOffset, visibleOffsetFromRawOffset, revealTargetAt,
+    scanCodeSpans, rangeTouchesCodeSpan,
     inlineDecorationKeepRanges, deletionSurvivingFragment, widenRangeForEmptiedDecorations,
+    resolveMarkerRun, toggleEmphasisMarkers, cycleMarkerRun,
   };
 }

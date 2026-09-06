@@ -17,6 +17,7 @@ const markdown = {
   classifyLine: "readonly",
   lineConversionOccurred: "readonly",
   inlineKindCounts: "readonly",
+  CODE_RE: "readonly",
 };
 const noteLines = {
   blockOffset: "readonly",
@@ -31,8 +32,13 @@ const noteLines = {
   visibleOffsetToRawOffset: "readonly",
   visibleOffsetFromRawOffset: "readonly",
   revealTargetAt: "readonly",
+  scanCodeSpans: "readonly",
+  rangeTouchesCodeSpan: "readonly",
   deletionSurvivingFragment: "readonly",
   widenRangeForEmptiedDecorations: "readonly",
+  resolveMarkerRun: "readonly",
+  toggleEmphasisMarkers: "readonly",
+  cycleMarkerRun: "readonly",
 };
 const history = {
   createHistory: "readonly",

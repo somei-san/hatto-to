@@ -9,6 +9,8 @@ global.escapeHtml = require("../../src/utils.js").escapeHtml;
 const markdownModule = require("../../src/markdown.js");
 global.inlineSegments = markdownModule.inlineSegments;
 global.isRevealableKind = markdownModule.isRevealableKind;
+global.CODE_RE = markdownModule.CODE_RE;
+global.classifyLine = markdownModule.classifyLine;
 
 const {
   blockOffset,
@@ -21,9 +23,14 @@ const {
   visibleOffsetToRawOffset,
   visibleOffsetFromRawOffset,
   revealTargetAt,
+  scanCodeSpans,
+  rangeTouchesCodeSpan,
   inlineDecorationKeepRanges,
   deletionSurvivingFragment,
   widenRangeForEmptiedDecorations,
+  resolveMarkerRun,
+  toggleEmphasisMarkers,
+  cycleMarkerRun,
 } = require("../../src/note-lines.js");
 
 describe("getAutoPrefix", () => {
@@ -260,6 +267,15 @@ describe("markerLength", () => {
     assert.equal(markerLength("plain text"), 0);
     assert.equal(markerLength("  plain text"), 2);
     assert.equal(markerLength(""), 0);
+  });
+
+  test("水平線（hr）は先頭が `- `/`* ` に見えてもリストマーカーとして数えない", () => {
+    // classifyLine は "- - -"/"* * *" を hr と判定する（HR_RE がリストの判定より先に検査
+    // される）。hr 行にリストマーカーは無いので、markerLength は常に 0 を返す
+    assert.equal(markerLength("- - -"), 0);
+    assert.equal(markerLength("* * *"), 0);
+    assert.equal(markerLength("***"), 0);
+    assert.equal(markerLength("---"), 0);
   });
 });
 
@@ -655,6 +671,95 @@ describe("revealTargetAt", () => {
   });
 });
 
+describe("scanCodeSpans", () => {
+  test("コードスパンの raw 範囲（マーカー込み）を列挙する", () => {
+    assert.deepEqual(scanCodeSpans("`abc`"), [{ start: 0, end: 5 }]);
+    assert.deepEqual(scanCodeSpans("pre `code` post"), [{ start: 4, end: 10 }]);
+  });
+
+  test("複数のコードスパンをすべて列挙する", () => {
+    assert.deepEqual(scanCodeSpans("`a` b `c`"), [{ start: 0, end: 3 }, { start: 6, end: 9 }]);
+  });
+
+  test("他の装飾に入れ子になっていても raw のバッククォート対をそのまま見つける", () => {
+    // inlineSegments では **`abc`** が 1 個の bold セグメント（kind: 'bold', charMap: null）に
+    // まとまり kind === 'code' が表に出てこないが、CODE_RE は raw を直接見るので取りこぼさない
+    assert.deepEqual(scanCodeSpans("**`abc`**"), [{ start: 2, end: 7 }]);
+  });
+
+  test("コードスパンが無い行は空配列", () => {
+    assert.deepEqual(scanCodeSpans("hello world"), []);
+  });
+
+  test("同じ CODE_RE（global regex）を使い回しても呼び出しごとに独立した結果になる", () => {
+    // CODE_RE は markdown.js の inlineMarkdown/inlineSegments とモジュール間で共有している
+    // 1 個の regex オブジェクト。String.prototype.matchAll は内部でクローンして走査するため
+    // regex.lastIndex を書き換えない。呼び出しを重ねても結果と lastIndex が変わらないことを確認する
+    const raw = "`a` b `c`";
+    assert.deepEqual(scanCodeSpans(raw), scanCodeSpans(raw));
+    assert.equal(markdownModule.CODE_RE.lastIndex, 0);
+  });
+});
+
+describe("rangeTouchesCodeSpan", () => {
+  // note.js の wrappableLineRange・toggleEmphasisShortcut が、コードスパンの一部にだけ触れる
+  // 選択（や collapsed キャレット）をマーカー打鍵の周期送り・⌘B/⌘I トグルの対象外にするのに使う
+  // （`` `abc` `` の "b" を選んで `` ` `` を打つと `` `a`b`c` `` とスパンが割れてしまう対策）。
+
+  test("開きマーカーに接する選択（可視の先頭側、例: `abcd` の \"ab\"）→ true", () => {
+    // 可視の "ab" を選ぶと、境界のスナップにより raw 選択は開きマーカーを含む [0, 3) になる
+    assert.equal(rangeTouchesCodeSpan("`abcd`", 0, 3), true);
+  });
+
+  test("閉じマーカーに接する選択（可視の末尾側、例: `abcd` の \"cd\"）→ true", () => {
+    // 可視の "cd" を選ぶと、境界のスナップにより raw 選択は閉じマーカーを含む [3, 6) になる
+    assert.equal(rangeTouchesCodeSpan("`abcd`", 3, 6), true);
+  });
+
+  test("マーカーに触れず中身だけに完全に収まる選択 → true", () => {
+    assert.equal(rangeTouchesCodeSpan("`abc`", 2, 3), true); // "b" だけ
+    assert.equal(rangeTouchesCodeSpan("`abc`", 1, 4), true); // "abc" 全体（マーカーは含まない）
+  });
+
+  test("スパンをちょうど丸ごと覆う選択（マーカーごと全体） → false（装飾のトグルとして扱う）", () => {
+    assert.equal(rangeTouchesCodeSpan("`abc`", 0, 5), false);
+  });
+
+  test("コードスパンと無関係な選択（重なりが無い） → false", () => {
+    const raw = "pre `code` post";
+    assert.equal(rangeTouchesCodeSpan(raw, 0, 3), false); // "pre"
+    assert.equal(rangeTouchesCodeSpan(raw, 11, 15), false); // "post"
+  });
+
+  test("コードスパンの中身の一部から外側までまたぐ選択 → true", () => {
+    const raw = "pre `code` post";
+    assert.equal(rangeTouchesCodeSpan(raw, 5, 12), true); // "code" の "co" 〜 閉じマーカー〜 "po" にまたがる
+  });
+
+  test("他の装飾に入れ子のコードスパン（**`abc`**）でも一部だけの選択は true", () => {
+    const raw = "**`abc`**";
+    assert.equal(rangeTouchesCodeSpan(raw, 4, 5), true); // "b" だけ
+  });
+
+  test("入れ子のコードスパンを含め選択が全体（コードスパンの外側まで覆う）なら false", () => {
+    const raw = "**`abc`**";
+    assert.equal(rangeTouchesCodeSpan(raw, 0, raw.length), false);
+  });
+
+  test("collapsed キャレット（start === end）がマーカー間にあれば true、マーカーちょうどの位置は false", () => {
+    const raw = "`abc`"; // 0:` 1:a 2:b 3:c 4:`
+    assert.equal(rangeTouchesCodeSpan(raw, 2, 2), true); // "a|bc" の間
+    assert.equal(rangeTouchesCodeSpan(raw, 1, 1), true); // 開きマーカー直後（内容の先頭）
+    assert.equal(rangeTouchesCodeSpan(raw, 0, 0), false); // 開きマーカーちょうど
+    assert.equal(rangeTouchesCodeSpan(raw, 5, 5), false); // 閉じマーカーの直後（スパンの外）
+  });
+
+  test("コードスパンの無い行は常に false", () => {
+    assert.equal(rangeTouchesCodeSpan("hello world", 2, 4), false);
+    assert.equal(rangeTouchesCodeSpan("**bold**", 2, 3), false);
+  });
+});
+
 // "abc **bold** def" の raw インデックス（インライン部＝行頭マーカーなし）:
 // a0 b1 c2 sp3 *4 *5 b6 o7 l8 d9 *10 *11 sp12 d13 e14 f15
 // 装飾セグメントは srcStart=4, srcEnd=12, 内容（charMap）は srcStart=6, len=4（"bold"）。
@@ -882,3 +987,278 @@ describe("isCheckboxLine", () => {
     assert.equal(isCheckboxLine("[ ] task"), false);
   });
 });
+
+describe("resolveMarkerRun", () => {
+  test("マーカーの無い選択 → lead/trail は 0", () => {
+    assert.deepEqual(resolveMarkerRun("hello x world", 6, 7, "*"), {
+      contentStart: 6, contentEnd: 7, lead: 0, trail: 0,
+    });
+  });
+
+  test("選択の外側に * が隣接 → 外側の連続を lead/trail とする", () => {
+    assert.deepEqual(resolveMarkerRun("*x*", 1, 2, "*"), {
+      contentStart: 1, contentEnd: 2, lead: 1, trail: 1,
+    });
+    assert.deepEqual(resolveMarkerRun("***x***", 3, 4, "*"), {
+      contentStart: 3, contentEnd: 4, lead: 3, trail: 3,
+    });
+  });
+
+  test("選択そのものがマーカー込み（可視の装飾テキストごとドラッグ）→ 内側を中身とする", () => {
+    assert.deepEqual(resolveMarkerRun("*x*", 0, 3, "*"), {
+      contentStart: 1, contentEnd: 2, lead: 1, trail: 1,
+    });
+    assert.deepEqual(resolveMarkerRun("**x**", 0, 5, "*"), {
+      contentStart: 2, contentEnd: 3, lead: 2, trail: 2,
+    });
+  });
+
+  test("マーカー文字はパラメータ化されている（` / ~ でも同じ判定が効く）", () => {
+    assert.deepEqual(resolveMarkerRun("`x`", 1, 2, "`"), {
+      contentStart: 1, contentEnd: 2, lead: 1, trail: 1,
+    });
+    assert.deepEqual(resolveMarkerRun("~~x~~", 0, 5, "~"), {
+      contentStart: 2, contentEnd: 3, lead: 2, trail: 2,
+    });
+  });
+});
+
+describe("toggleEmphasisMarkers", () => {
+  test("*x* を選択して ⌘B → ***x***", () => {
+    const r = toggleEmphasisMarkers("*x*", 1, 2, "bold");
+    assert.equal(r.text, "***x***");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+  });
+
+  test("***x*** を選択して ⌘B → *x*", () => {
+    const r = toggleEmphasisMarkers("***x***", 3, 4, "bold");
+    assert.equal(r.text, "*x*");
+  });
+
+  test("**x** を選択して ⌘I → ***x***", () => {
+    const r = toggleEmphasisMarkers("**x**", 2, 3, "italic");
+    assert.equal(r.text, "***x***");
+  });
+
+  test("***x*** を選択して ⌘I → **x**", () => {
+    const r = toggleEmphasisMarkers("***x***", 3, 4, "italic");
+    assert.equal(r.text, "**x**");
+  });
+
+  test("マーカーの無い選択に ⌘B → 両側に ** を足す", () => {
+    const r = toggleEmphasisMarkers("hello x world", 6, 7, "bold");
+    assert.equal(r.text, "hello **x** world");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+  });
+
+  test("マーカーの無い選択に ⌘I → 両側に * を足す", () => {
+    const r = toggleEmphasisMarkers("hello x world", 6, 7, "italic");
+    assert.equal(r.text, "hello *x* world");
+  });
+
+  test("可視の装飾テキスト全体をドラッグした選択（raw がマーカー込み）でもトグルできる", () => {
+    const r = toggleEmphasisMarkers("*x*", 0, 3, "bold");
+    assert.equal(r.text, "***x***");
+  });
+
+  test("複数文字の中身でも対称に付け外しする", () => {
+    const r = toggleEmphasisMarkers("**hello**", 2, 7, "italic");
+    assert.equal(r.text, "***hello***");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "hello");
+  });
+
+  test("非対称（片側だけ閉じていない * が隣接）: ⌘B は揃う分（0 本）だけを足し、余りの * は触らない", () => {
+    // "a *b" の "b" を選択。手前に閉じていない "*" が 1 個あるが、後ろには無い
+    // （lead=1, trail=0）ため、揃う分 n=min(1,0)=0 として新しい ** を "b" のすぐ両側にだけ足す
+    const r = toggleEmphasisMarkers("a *b", 3, 4, "bold");
+    assert.equal(r.text, "a ***b**");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "b");
+  });
+
+  test("非対称: ⌘I も揃う分（0 本）だけを足す", () => {
+    const r = toggleEmphasisMarkers("a *b", 3, 4, "italic");
+    assert.equal(r.text, "a **b*");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "b");
+  });
+
+  test("複数の装飾を覆う選択（**a** b **c** 全体）への ⌘B は、既存のマーカーをペア違いで壊さず選択全体を包む", () => {
+    const r = toggleEmphasisMarkers("**a** b **c**", 0, 13, "bold");
+    assert.equal(r.text, "****a** b **c****");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "**a** b **c**");
+  });
+
+  test("複数の装飾を覆う選択への ⌘I も同様に選択全体を包む", () => {
+    const r = toggleEmphasisMarkers("**a** b **c**", 0, 13, "italic");
+    assert.equal(r.text, "***a** b **c***");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "**a** b **c**");
+  });
+
+  test("collapsed キャレット（start === end）が無地の位置なら ⌘B は **** を挿入する", () => {
+    const r = toggleEmphasisMarkers("ab", 1, 1, "bold");
+    assert.equal(r.text, "a****b");
+    assert.equal(r.contentStart, r.contentEnd);
+    assert.equal(r.contentStart, 3);
+  });
+
+  test("collapsed キャレットが無地の位置なら ⌘I は ** を挿入する", () => {
+    const r = toggleEmphasisMarkers("ab", 1, 1, "italic");
+    assert.equal(r.text, "a**b");
+    assert.equal(r.contentStart, 2);
+  });
+
+  test("collapsed キャレットが `**|**` の内側なら ⌘B は増やさず外す", () => {
+    const r = toggleEmphasisMarkers("****", 2, 2, "bold");
+    assert.equal(r.text, "");
+    assert.equal(r.contentStart, 0);
+  });
+
+  test("collapsed キャレットが `**|**` の内側なら ⌘I は 1 本増やす", () => {
+    const r = toggleEmphasisMarkers("****", 2, 2, "italic");
+    assert.equal(r.text, "******"); // "***|***"
+    assert.equal(r.contentStart, 3);
+  });
+
+  test("collapsed キャレットが `***|***` の内側なら ⌘I は 1 本外す", () => {
+    const r = toggleEmphasisMarkers("******", 3, 3, "italic");
+    assert.equal(r.text, "****"); // "**|**"
+    assert.equal(r.contentStart, 2);
+  });
+});
+
+describe("行頭マーカー行での包む/トグル（マーカーを巻き込まないためのクランプ）", () => {
+  // resolveSelectionBounds（note.js）は、選択開始点の可視オフセットが 0（行頭マーカー直後）の
+  // 選択を削除範囲向けの仕様として start.col=0 へ正規化する。note.js の wrappableLineRange は
+  // これを Math.max(start.col, lineStartColumn(line)) で押し戻してから cycleMarkerRun/
+  // toggleEmphasisMarkers に渡す。ここでは markerLength（lineStartColumn の非フェンス版）を使い、
+  // その押し戻し後の呼び出しが行頭マーカーを巻き込まないことを確認する。
+  test("- item の可視オフセット0正規化後の選択（'item' 全体）を * で包む → マーカーは巻き込まない", () => {
+    const line = "- item";
+    const clampedStart = Math.max(0, markerLength(line));
+    const r = cycleMarkerRun(line, clampedStart, line.length, "*");
+    assert.equal(r.text, "- *item*");
+  });
+
+  test("- [ ] task も同様", () => {
+    const line = "- [ ] task";
+    const clampedStart = Math.max(0, markerLength(line));
+    const r = cycleMarkerRun(line, clampedStart, line.length, "*");
+    assert.equal(r.text, "- [ ] *task*");
+  });
+
+  test("# Title への ⌘B もマーカーは巻き込まない", () => {
+    const line = "# Title";
+    const clampedStart = Math.max(0, markerLength(line));
+    const r = toggleEmphasisMarkers(line, clampedStart, line.length, "bold");
+    assert.equal(r.text, "# **Title**");
+  });
+});
+
+describe("cycleMarkerRun", () => {
+  // 選択に同じマーカー文字を打鍵したときの周期送り。外側へ重ね続けず、マーカーごとの
+  // 周期の最後で無装飾に戻る。
+
+  describe("* の周期: 0 → 1 → 2 → 3 → 0", () => {
+    test("x → *x*", () => {
+      const r = cycleMarkerRun("x", 0, 1, "*");
+      assert.equal(r.text, "*x*");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+
+    test("*x* の x を選んで * → **x**", () => {
+      const r = cycleMarkerRun("*x*", 1, 2, "*");
+      assert.equal(r.text, "**x**");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+
+    test("**x** の x を選んで * → ***x***", () => {
+      const r = cycleMarkerRun("**x**", 2, 3, "*");
+      assert.equal(r.text, "***x***");
+    });
+
+    test("***x*** の x を選んで * → x（周期の最後で無装飾に戻る）", () => {
+      const r = cycleMarkerRun("***x***", 3, 4, "*");
+      assert.equal(r.text, "x");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+
+    test("可視の太字全体（**x** をマーカーごと選択）を * → ***x***（内側判定から続きの周期に入る）", () => {
+      const r = cycleMarkerRun("**x**", 0, 5, "*");
+      assert.equal(r.text, "***x***");
+    });
+
+    test("4 本を超える異常値（defensive）も 0 へ戻す", () => {
+      const r = cycleMarkerRun("****x****", 0, 9, "*"); // 内側判定: lead=trail=4
+      assert.equal(r.text, "x");
+    });
+  });
+
+  describe("` の周期: 0 → 1 → 0", () => {
+    test("x → `x`", () => {
+      const r = cycleMarkerRun("x", 0, 1, "`");
+      assert.equal(r.text, "`x`");
+    });
+
+    test("`x` の x を選んで ` → x（1 本以上は全部外す）", () => {
+      const r = cycleMarkerRun("`x`", 1, 2, "`");
+      assert.equal(r.text, "x");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+  });
+
+  describe("~ の周期: 0/1 → 2 → 0", () => {
+    test("x → ~~x~~（2 本で包む）", () => {
+      const r = cycleMarkerRun("x", 0, 1, "~");
+      assert.equal(r.text, "~~x~~");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+
+    test("~~x~~ の x を選んで ~ → x（2 本以上は 2 本外す、余りは残る）", () => {
+      const r = cycleMarkerRun("~~x~~", 2, 3, "~");
+      assert.equal(r.text, "x");
+    });
+
+    test("~x~（この機能では作られない 1 本状態）の x を選んで ~ → ~~x~~（既存の 1 本の外側に足すのではなく 2 本に置き換わる）", () => {
+      const r = cycleMarkerRun("a ~x~ b", 3, 4, "~");
+      assert.equal(r.text, "a ~~x~~ b");
+      assert.equal(r.text.slice(r.contentStart, r.contentEnd), "x");
+    });
+
+    test("~~~x~~~（3 本）の x を選んで ~ → ~x~（3 本以上は 2 本だけ外し、余り 1 本は残る）", () => {
+      const r = cycleMarkerRun("~~~x~~~", 3, 4, "~");
+      assert.equal(r.text, "~x~");
+    });
+  });
+
+  test("非対称（片側だけ閉じていない * が隣接）: 揃う分（0 本）だけを進め、余りの * は触らない", () => {
+    // "a *b" の "b" を選択。手前に閉じていない "*" が 1 個あるが後ろには無い（lead=1, trail=0）
+    // ため、揃う分 n=min(1,0)=0 として新しい * を "b" のすぐ両側にだけ足す
+    const r = cycleMarkerRun("a *b", 3, 4, "*");
+    assert.equal(r.text, "a **b*");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "b");
+  });
+
+  test("複数の装飾を覆う選択（**a** b **c** 全体）への * は、既存のマーカーをペア違いで壊さず選択全体を包む（内側判定に落ちない）", () => {
+    const r = cycleMarkerRun("**a** b **c**", 0, 13, "*");
+    assert.equal(r.text, "*" + "**a** b **c**" + "*");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "**a** b **c**");
+  });
+
+  test("複数のコードスパンを覆う選択（`a` b `c` 全体）への ` は、内側判定に落ちずスパンを壊さない", () => {
+    const r = cycleMarkerRun("`a` b `c`", 0, 9, "`");
+    assert.equal(r.text, "`" + "`a` b `c`" + "`");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "`a` b `c`");
+  });
+
+  test("複数の取り消し線を覆う選択（~~a~~ b ~~c~~ 全体）への ~ は、内側判定に落ちずマーカーを壊さない", () => {
+    const r = cycleMarkerRun("~~a~~ b ~~c~~", 0, 13, "~");
+    assert.equal(r.text, "~~" + "~~a~~ b ~~c~~" + "~~");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "~~a~~ b ~~c~~");
+  });
+
+  test("選択が空（start === end）でも 0 幅の中身をそのまま包む", () => {
+    const r = cycleMarkerRun("hello", 2, 2, "*");
+    assert.equal(r.text, "he**llo");
+    assert.equal(r.text.slice(r.contentStart, r.contentEnd), "");
+  });
+});
+

@@ -101,13 +101,24 @@ const corpus = [
   {
     name: "triple asterisks",
     raw: "***text***",
-    html: "<strong><em>text</strong></em>",
+    html: "<strong><em>text</em></strong>",
   },
+  // 4 個以上連続する `*` は BOLD_ITALIC_RE（3 個ぴったりの専用ステップ）の対象外で、
+  // 余った `*` が BOLD_RE/ITALIC_RE に流れ込む
   {
     name: "quadruple asterisks",
     raw: "****text****",
-    html: "<strong>*<em>text</strong></em>*",
+    html: "<em><strong><em>text</em></strong></em>",
   },
+  {
+    name: "asterisks only, no content (empty bold+italic pair) — マーカーとして残り装飾化しない",
+    raw: "a******b",
+    html: "a******b",
+  },
+  { name: "empty bold pair (****)", raw: "****", html: "****" },
+  { name: "empty single-asterisk pair (**)", raw: "**", html: "**" },
+  { name: "empty code span pair (``)", raw: "``", html: "``" },
+  { name: "empty strikethrough pair (~~~~)", raw: "~~~~", html: "~~~~" },
   {
     name: "image nested inside link",
     raw: "[![alt](images/a.png)](https://example.com)",
@@ -142,7 +153,7 @@ const corpus = [
     name: "triple-asterisk bold immediately followed by a bare url (reported bug repro)",
     raw: "***https://u**https://u",
     html:
-      '<strong>*<a href="https://u" data-url="https://u">https://u</a></strong>' +
+      '*<strong><a href="https://u" data-url="https://u">https://u</a></strong>' +
       '<a href="https://u" data-url="https://u">https://u</a>',
   },
   // 裸URLの直後に隙間なくコードスパンが続くケース: code 復元ステップが href/data-url
@@ -259,12 +270,22 @@ describe("inlineSegments — 不変条件", () => {
 // 「raw.slice(charMap.srcStart, charMap.srcStart + charMap.len) が visibleText と一致する」
 // という不変条件を直接検証する（内容が raw のどの範囲のコピーかという charMap の定義に対応）
 describe("inlineSegments — charMap", () => {
-  test("太字・イタリック・取り消し線・コードスパンは charMap を持つ", () => {
-    for (const raw of ["**bold**", "*italic*", "~~del~~", "`code`"]) {
+  test("太字・イタリック・取り消し線・コードスパン・太字+斜体は charMap を持つ", () => {
+    for (const raw of ["**bold**", "*italic*", "~~del~~", "`code`", "***bolditalic***"]) {
       const [seg] = inlineSegments(raw);
       assert.ok(seg.charMap, raw);
       assert.equal(raw.slice(seg.charMap.srcStart, seg.charMap.srcStart + seg.charMap.len), seg.visibleText, raw);
     }
+  });
+
+  test("*** は 1 セグメント（太字+斜体）で、srcStart/srcEnd が raw 全体を覆い charMap は中身だけを指す", () => {
+    const raw = "***x***";
+    const [seg] = inlineSegments(raw);
+    assert.equal(seg.srcStart, 0);
+    assert.equal(seg.srcEnd, raw.length);
+    assert.equal(seg.kind, "bolditalic");
+    assert.deepEqual(seg.charMap, { srcStart: 3, len: 1 });
+    assert.equal(seg.html, "<strong><em>x</em></strong>");
   });
 
   test("リンクラベルは charMap を持つ（URL 部分は対象外）", () => {
@@ -326,6 +347,7 @@ describe("inlineSegments — charMap", () => {
   test("kind: 装飾の種類がセグメントに付く（reveal 対象判定に使う）", () => {
     assert.equal(inlineSegments("**bold**")[0].kind, "bold");
     assert.equal(inlineSegments("*italic*")[0].kind, "italic");
+    assert.equal(inlineSegments("***bolditalic***")[0].kind, "bolditalic");
     assert.equal(inlineSegments("~~del~~")[0].kind, "del");
     assert.equal(inlineSegments("`code`")[0].kind, "code");
     assert.equal(inlineSegments("[label](https://e.com)")[0].kind, "link");
@@ -434,9 +456,10 @@ describe("inlineMarkdown / inlineSegments — 二経路の出力一致 (fuzz)", 
 // inlineSegments の第2引数。指定した raw 範囲にちょうど一致する reveal 対象セグメントを、
 // 装飾変換を通さない生 raw の html（charMap は raw への恒等写像）に差し替える。
 describe("inlineSegments — reveal", () => {
-  test("isRevealableKind: 太字・斜字・取り消し線・コード・リンクは true、画像・裸URL・null は false", () => {
+  test("isRevealableKind: 太字・斜字・太字+斜字・取り消し線・コード・リンクは true、画像・裸URL・null は false", () => {
     assert.equal(isRevealableKind("bold"), true);
     assert.equal(isRevealableKind("italic"), true);
+    assert.equal(isRevealableKind("bolditalic"), true);
     assert.equal(isRevealableKind("del"), true);
     assert.equal(isRevealableKind("code"), true);
     assert.equal(isRevealableKind("link"), true);
@@ -476,5 +499,38 @@ describe("inlineSegments — reveal", () => {
     const withStaleReveal = inlineSegments(raw, { start: 0, end: 4 }); // どのセグメントとも一致しない範囲
     const withoutReveal = inlineSegments(raw);
     assert.deepEqual(withStaleReveal.map((s) => s.html), withoutReveal.map((s) => s.html));
+  });
+});
+
+describe("inlineSegments — 水平線（hr）は恒等写像（装飾解釈を行わない）", () => {
+  // classifyLine が hr と判定する raw（水平線行はマーカー長 0 なので raw 全体がここに渡る）は
+  // 装飾解釈を一切せず、raw 全体を 1 セグメント（charMap も恒等）として返す。"* * *" のように
+  // 装飾記法の一部（ITALIC_RE の "* *"）に見える形でも化けない
+  test("`* * *` は raw のまま 1 セグメント、charMap は恒等写像", () => {
+    const raw = "* * *";
+    const [seg] = inlineSegments(raw);
+    assert.equal(inlineSegments(raw).length, 1);
+    assert.equal(seg.html, raw);
+    assert.equal(seg.visibleText, raw);
+    assert.equal(seg.kind, null);
+    assert.deepEqual(seg.charMap, { srcStart: 0, len: raw.length });
+  });
+
+  test("`***`/`---`/`___` も同様に恒等写像", () => {
+    for (const raw of ["***", "---", "___", "****"]) {
+      const [seg] = inlineSegments(raw);
+      assert.equal(seg.html, raw, raw);
+      assert.equal(seg.visibleText, raw, raw);
+    }
+  });
+
+  test("reveal 引数を渡しても hr の恒等写像は変わらない（hr に装飾 reveal の概念は無い）", () => {
+    const raw = "* * *";
+    assert.deepEqual(inlineSegments(raw, { start: 0, end: raw.length }), inlineSegments(raw));
+  });
+
+  test("inlineMarkdown も同じ raw に対して同じ恒等写像を返す（二経路の一致を hr でも保つ）", () => {
+    const raw = "* * *";
+    assert.equal(inlineMarkdown(raw), inlineSegments(raw).map((s) => s.html).join(""));
   });
 });

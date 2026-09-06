@@ -48,6 +48,12 @@ let suppressPostCompositionInput = false;
 // { line, start, end } | null。start/end は line のマーカーを除いた内容上の raw オフセット
 let revealState = null;
 
+// 水平線（hr）を <hr> の代わりに生 raw のテキスト行として表示する行番号の集合。<hr> は
+// contenteditable の着地点を持たないため、選択の anchor/focus がその行に乗っているあいだだけ
+// 生表示にする。revealState と違い、非 collapsed 選択の間も両端点ぶん複数行を保持できる
+// （不変条件「非 collapsed 中は revealState は必ず null」はこちらには適用されない）。
+let hrRevealLines = new Set();
+
 // ⌘Z/⌘⇧Z の undo/redo 履歴。loadNote() が最初の content で初期化する
 let editHistory = null;
 
@@ -175,7 +181,14 @@ function renderAll(forceReplaceLines) {
   // ハンドルは指していた画像の参照を保持するため、パッチで画像ブロックが差し替わると
   // detached な img へ書き込む・別画像の上に残ることがある。再描画のたびに一旦隠す
   hideHandle();
-  patchMarkdownView(renderMarkdown(rawContent, revealState), forceReplaceLines);
+  // hrRevealLines は applyLines・placeCaretAtRaw・selectionchange リスナーが個別に更新するが、
+  // それらを経由せず直接 renderAll を呼ぶ経路（履歴の巻き戻し・IME 確定・画像削除後の再描画等）
+  // では更新されないまま古い行番号を持ちうる（該当行の内容が変わって hr でなくなった等）。
+  // 描画のたびにここで hr でない行を刈り、常に「現在 hr な行だけの集合」を保つ
+  for (const line of hrRevealLines) {
+    if (!isHrLine(line)) hrRevealLines.delete(line);
+  }
+  patchMarkdownView(renderMarkdown(rawContent, revealState, hrRevealLines), forceReplaceLines);
   applySelectionHighlight();
 }
 
@@ -407,7 +420,10 @@ function selectImage(line, occurrence, relSrc) {
 // キーボード移動等）のときだけ。
 
 /** 行 line の raw 列 col（null なら行末）へキャレットを置く。画像のみの行は選択状態にする
- * （キャレット配置全体の唯一の関所）。 */
+ * （キャレット配置全体の唯一の関所）。水平線（hr）の行は <hr> のままだと着地点が無いため、
+ * まだ hrRevealLines に入っていなければ先に加えて再描画してから置く（revealState には
+ * 触れない。revealState は「非 collapsed 選択中は必ず null」という不変条件を持つが、
+ * hrRevealLines にその制約は無いため、ここで別状態として独立に更新できる）。 */
 function placeCaretAtRaw(line, col) {
   const lines = getLines();
   const i = Math.max(0, Math.min(line, lines.length - 1));
@@ -420,6 +436,10 @@ function placeCaretAtRaw(line, col) {
     return;
   }
   clearImageSelection();
+  if (isHrLine(i) && !hrRevealLines.has(i)) {
+    hrRevealLines = new Set(hrRevealLines).add(i);
+    renderAll();
+  }
   const lineText = lines[i] ?? '';
   const targetCol = col == null ? lineText.length : Math.min(Math.max(col, 0), lineText.length);
   setCaretAtRaw(i, targetCol);
@@ -472,15 +492,26 @@ function ensureTrailingLineAfterClosedFence(lines) {
   }
 }
 
-/** 行構成そのものが変わる編集（splice 系）の共通後処理。 */
-function applyLines(lines, caretLine, caretCol) {
+/** 行構成そのものが変わる編集（splice 系）の共通後処理。suppressReveal を渡すと
+ * computeRevealTarget を呼ばず revealState を null に固定する。呼び出し元が直後に selectRawRange
+ * で非 collapsed 選択を張る場合向け（cycleSelectionMarker・toggleEmphasisShortcut 参照）:
+ * domPointForRawPosition は現在の revealState を前提に DOM 位置を求める（contentVisibleColumn
+ * 参照）ため、reveal を立てた描画を経由すると、その後 selectRawRange の前に revealState を
+ * クリアして描き直す必要が生じ、再描画が 2 回に増えて生マーカーが 1 フレーム見えてしまう。
+ * suppressReveal で最初から reveal を立てなければ 1 回の描画で済む。 */
+function applyLines(lines, caretLine, caretCol, { suppressReveal = false } = {}) {
   ensureTrailingLineAfterClosedFence(lines);
   rawContent = lines.join('\n');
   // reveal 対象を再描画の前に確定させる（renderAll → placeCaretAtRaw を、まだ古い revealState の
   // ままの 1 回で済ませる）。selectionchange の再判定だけに任せると、reveal 境界が動き続ける位置
   // （例: リンクの URL 内で打鍵し続ける）で「一旦ずれた状態を描画 → 非同期に selectionchange で
   // 補正」という 2 段構えになり、次の打鍵がその補正と競合しうる（詳細は computeRevealTarget 参照）
-  revealState = computeRevealTarget(caretLine, caretCol);
+  revealState = suppressReveal ? null : computeRevealTarget(caretLine, caretCol);
+  // hr でない caretLine を含めても renderMarkdown 側は無視するだけで描画上は無害だが、
+  // hrRevealLines の「集合として変わったか」の比較（sameHrRevealLines）に影響し、非 hr 行への
+  // 打鍵のたびに毎回「変わった」と誤検出して余分な renderAll・選択の組み直しを引き起こす
+  // （suppressReveal の対象外。hr 行の生表示に不変条件は無いため常にここで確定してよい）
+  hrRevealLines = new Set(isHrLine(caretLine) ? [caretLine] : []);
   renderAll();
   placeCaretAtRaw(caretLine, caretCol);
   scheduleSave();
@@ -521,6 +552,11 @@ mdView.addEventListener('mouseup', (e) => {
   }
   if (el.dataset.lineEnd != null) return; // フェンス内はネイティブ配置に任せる
   const lineIdx = Number(el.dataset.line);
+  if (isHrLine(lineIdx)) {
+    // <hr> は着地点を持たないのでネイティブ配置に任せられない（placeCaretAtRaw が生表示へ切り替える）
+    placeCaretAtRaw(lineIdx, null);
+    return;
+  }
   if (isImageOnlyLine(lines[lineIdx] ?? '')) {
     // 画像のみの行の余白クリックも placeCaretAtRaw の関所が選択状態にする
     placeCaretAtRaw(lineIdx, null);
@@ -1382,9 +1418,91 @@ function checkpointConversion(line, spliceFn) {
   if (lineConversionOccurred(before, after)) editHistory?.commit(beforeContent);
 }
 
+// ── 選択範囲へのマーカー打鍵で装飾を周期送りする ───────────────
+// 単一行の非 collapsed 選択に `*`/`` ` ``/`~` を打つと、文字を挿入する代わりに
+// cycleMarkerRun（note-lines.js）でその文字の装飾を 1 段階進める（重ね続けず、マーカーごとの
+// 周期の最後で無装飾に戻る）。行またぎ・空選択・フェンス内容行は対象外にして insertText の
+// 通常経路（文字挿入・置換）へ委ねる。
+const CYCLE_MARKER_CHARS = new Set(['*', '`', '~']);
+
+function isFenceContentLine(line) {
+  const block = findBlock(line);
+  return !!(block && block.start !== block.end);
+}
+
+/**
+ * 選択（または collapsed キャレット、start === end）[start, end)（raw 列）が、行内のコード
+ * スパンの一部にだけ触れている（スパンをちょうど丸ごと覆ってはいない）か。触れている場合は
+ * cycleSelectionMarker・toggleEmphasisShortcut の対象外にし、通常の文字挿入・置換（または
+ * ⌘B/⌘I なら preventDefault のみ）に倒す。コードスパンの中身はリテラルなテキストで、
+ * `` ` `` を打つと `` `abc` `` の "b" を選んで打った場合に `` `a`b`c` `` とスパンが
+ * 割れてしまう（選択の外側にある既存の `` ` `` を、打った `` ` `` の対と誤認して
+ * 中身だけを新しいコードスパンにしてしまうため）。判定自体は rangeTouchesCodeSpan
+ * （note-lines.js）に委ね、ここでは行頭マーカー分のオフセットを合わせるだけ。
+ *
+ * リンクのラベル部分・裸URLは対象外にしていない: リンクは可視テキスト（ラベル）が URL 側の
+ * raw 文字には写像されず（charMap はラベルの範囲のみ）、URL 自体を選択で狙う経路が無い。
+ * 裸URLは可視テキスト全体が URL と一致するが、`*`/`` ` ``/`~` は URL の構文上の区切り文字
+ * ではなく（BAREURL_RE は空白以外を丸ごと URL とみなす）、コードスパンのように「打った文字が
+ * 既存の区切りと衝突してスパンを割る」という壊れ方はしない。
+ */
+function touchesCodeSpan(line, start, end) {
+  const markerLen = lineStartColumn(line);
+  const inlineRaw = getLines()[line].slice(markerLen);
+  return rangeTouchesCodeSpan(inlineRaw, start - markerLen, end - markerLen);
+}
+
+/**
+ * bounds（resolveEditableBounds の結果）の非 collapsed 選択を、包む/トグルの対象範囲
+ * { line, start, end }（raw 列）へ正規化する。単一行以外・フェンス内容行・コードスパンの
+ * 中身への選択・クランプ後に中身が空になる選択は null。
+ *
+ * resolveSelectionBounds は「選択開始点の可視オフセットが 0（行頭マーカー直後）」の選択を、
+ * 削除範囲向けの仕様として start.col を行頭（マーカー込みの col 0）へ正規化する
+ * （collapsedBounds が挿入位置向けにこの正規化を避けて resolveSelectionPoint を直接使っている
+ * のと対になる仕様。resolveSelectionBounds 自身のコメント参照）。包む/トグルはマーカーの外側
+ * だけを対象にしたいので、ここで lineStartColumn 未満に潜り込んだ分を内容の先頭へ押し戻す。
+ * これをしないと
+ * `- item` の "item" 選択 + `*` が `- *item*` ではなく `*- item*`（マーカーごと包む）に
+ * なってしまう。
+ */
+function wrappableLineRange(bounds) {
+  const { start, end } = bounds;
+  if (start.line !== end.line || start.col === end.col || isFenceContentLine(start.line)) return null;
+  const col = Math.max(start.col, lineStartColumn(start.line));
+  if (col >= end.col) return null;
+  if (touchesCodeSpan(start.line, col, end.col)) return null;
+  return { line: start.line, start: col, end: end.col };
+}
+
+/** splice 前の rawContent を undo チェックポイントとして commit する。checkpointConversion と
+ * 違い「変換が起きたか」を判定せず常に打つ（包む/トグルは常に undo 1 手で戻したい操作）。 */
+function withUndoCheckpoint(spliceFn) {
+  const beforeContent = rawContent;
+  spliceFn();
+  editHistory?.commit(beforeContent);
+}
+
+function cycleSelectionMarker(range, marker) {
+  const lines = getLines();
+  const cycled = cycleMarkerRun(lines[range.line], range.start, range.end, marker);
+  withUndoCheckpoint(() => {
+    lines[range.line] = cycled.text;
+    applyLines(lines, range.line, cycled.contentStart, { suppressReveal: true });
+  });
+  selectRawRange(range.line, cycled.contentStart, range.line, cycled.contentEnd);
+}
+
 function onInsertText(data) {
   const bounds = resolveEditableBounds();
   if (!bounds) return;
+  if (CYCLE_MARKER_CHARS.has(data)) {
+    const range = wrappableLineRange(bounds);
+    if (range) {
+      cycleSelectionMarker(range, data);
+      return;
+    }
+  }
   if (data === ' ') {
     // スペース自体の挿入とチェックボックス補完判定を 1 回の checkpointConversion にまとめる
     // （スペース打鍵の直前を undo チェックポイントにするため。分けると、スペース挿入だけの
@@ -1779,6 +1897,58 @@ document.addEventListener('keydown', (e) => {
   selectAllNote();
 });
 
+// ── 太字/斜体トグル (⌘B / ⌘I) ─────────────────────────
+// menu.rs にこのアクセラレータは無い（ネイティブメニュー経由ではなくここで直接拾う）。
+// mdView がフォーカスを持ち（document.activeElement === mdView）、かつ選択が mdView 内にある
+// 間は必ず preventDefault する：ブラウザ既定の execCommand bold/italic が <b>/<i> を差し込んで
+// DOM と rawContent を食い違わせるため、何もしない（行またぎ・フェンス内容行）場合も
+// 既定動作は止める。
+function toggleEmphasisShortcut(kind) {
+  const bounds = resolveEditableBounds();
+  if (!bounds) return;
+  const { start, end } = bounds;
+  if (start.line !== end.line || isFenceContentLine(start.line)) return;
+
+  const lines = getLines();
+  if (start.col === end.col) {
+    if (touchesCodeSpan(start.line, start.col, end.col)) return; // マーカー間の collapsed キャレット
+    const toggled = toggleEmphasisMarkers(lines[start.line], start.col, end.col, kind);
+    withUndoCheckpoint(() => {
+      lines[start.line] = toggled.text;
+      applyLines(lines, start.line, toggled.contentStart);
+    });
+    return;
+  }
+  const range = wrappableLineRange(bounds);
+  if (!range) return;
+  const toggled = toggleEmphasisMarkers(lines[range.line], range.start, range.end, kind);
+  withUndoCheckpoint(() => {
+    lines[range.line] = toggled.text;
+    applyLines(lines, range.line, toggled.contentStart, { suppressReveal: true });
+  });
+  selectRawRange(range.line, toggled.contentStart, range.line, toggled.contentEnd);
+}
+
+// composing 中（IME 変換中）でも mdView 内なら必ず preventDefault する（ブラウザ既定の
+// execCommand bold/italic が確定前の変換 DOM ごと壊すため）。ただし toggleEmphasisShortcut の
+// 実行はスキップする：変換中に rawContent を直接書き換えると変換確定（compositionend）と
+// 競合する。判定順は「mdView 内判定 → preventDefault → composing なら return」で固定し、
+// composing チェックを先頭に置いて丸ごと早期 return しない（それだと preventDefault 前に
+// 抜けてしまい、変換中だけ既定の bold/italic が素通りする）。
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey)) return;
+  const key = e.key.toLowerCase();
+  if (key !== 'b' && key !== 'i') return;
+  if (e.defaultPrevented) return;
+  const sel = window.getSelection();
+  const inMdView = document.activeElement === mdView
+    && !!sel.rangeCount && mdView.contains(sel.getRangeAt(0).commonAncestorContainer);
+  if (!inMdView) return;
+  e.preventDefault();
+  if (composing || suppressPostCompositionInput) return;
+  toggleEmphasisShortcut(key === 'b' ? 'bold' : 'italic');
+});
+
 // 行またぎ選択の Escape はブラウザ既定に無いので自前で解除する。mdView がフォーカスを
 // 持ったまま selection だけを空にすると、フォーカスされた contenteditable には常にキャレットが
 // 要るというブラウザの既定動作で collapsed な selection が即座に再生成されてしまう。
@@ -2087,6 +2257,20 @@ function sameReveal(a, b) {
   return a.line === b.line && a.start === b.start && a.end === b.end;
 }
 
+/** resolveSelectionPoint の結果（null を含む）から hrRevealLines 用の行番号集合を作る。 */
+function hrLineSetFromPoints(...points) {
+  // hr でない行番号を混ぜると、hr と無関係な選択（例: 見出しをコンテナ境界から選択する等）でも
+  // hrRevealLines が「変わった」と誤検出し、無関係な選択まで raw 位置経由で組み直してしまう
+  // （元の DOM Range の形が変わり、コピー時の HTML 構造化が変わる副作用が出る）
+  return new Set(points.filter(Boolean).map((p) => p.line).filter((line) => isHrLine(line)));
+}
+
+function sameHrRevealLines(a, b) {
+  if (a.size !== b.size) return false;
+  for (const line of a) if (!b.has(line)) return false;
+  return true;
+}
+
 /** line がコードブロックのフェンス行・内容行のどれかに含まれるか。findBlock（描画済み DOM 基準）
  * とは違い lines 配列だけから求める（scanFenceRanges は renderMarkdown 自身が使う判定とも共有）。
  * applyLines がまだ renderAll する前に reveal 対象を決めたいときに使う（DOM 依存だと直前の
@@ -2115,20 +2299,37 @@ function computeRevealTarget(line, col) {
 
 /**
  * 選択が collapsed から非 collapsed に変わった瞬間（reveal 中の Shift+矢印での選択開始・
- * ドラッグ選択・⌘A 等）に、revealState を解除しつつ renderAll() で失われる DOM 選択を張り直す。
+ * ドラッグ選択・⌘A 等）、または非 collapsed のまま選択の端点が乗る行（hrRevealLines 対象）が
+ * 変わった瞬間に、revealState を解除しつつ renderAll() で失われる DOM 選択を張り直す。
  * anchor/focus（後方への選択も含む向き）を resolveSelectionPoint で raw 位置へ解決してから
- * revealState を null にして再描画し、domPointForRawPosition で新しい（reveal を含まない）DOM 上の
- * 対応点へ選択を戻す。端点が装飾マーカーの内部（reveal 中しか到達できない raw 位置）に落ちていても、
- * domPointForRawPosition 自身の丸め規則（可視境界へのスナップ）でそのまま解決できる。端点を
- * 解決できない選択（mdView 外を含む Range 等）は復元を諦める。
+ * revealState を null に・hrRevealLines を両端点の行に更新して再描画し、domPointForRawPosition
+ * で新しい DOM 上の対応点へ選択を戻す。端点が装飾マーカーの内部（reveal 中しか到達できない raw
+ * 位置）に落ちていても、domPointForRawPosition 自身の丸め規則（可視境界へのスナップ）でそのまま
+ * 解決できる。端点を解決できない選択（mdView 外を含む Range 等）は復元を諦める。
+ * 何も変わっていなければ（revealState が既に null かつ hrRevealLines も同じ）再描画しない
+ * （ちらつき防止。setBaseAndExtent が引き起こす次の selectionchange をここで吸収する）。
+ *
+ * start/end が同じ raw 位置に縮退する選択（hr・空フェンス等、可視テキストが1つも無い行だけを
+ * 覆う選択。resolveSelectionPoint はテキストノード基準でしか区別できない）はここで手を出さない:
+ * この形は resolveSelectionBounds 側の expandZeroVisibleLineSelection が既に扱う既存の仕組みで、
+ * その前提は対象行が <hr> のまま（未生表示）であること。ここで hr を生表示にしてから
+ * setBaseAndExtent で選択を組み直すと、２点とも同じ raw 位置に潰れているため選択そのものが
+ * collapsed になってしまい、コピー/削除が「選択なし」に見えてしまう。hrRevealLines は変えず
+ * （対象行を <hr> のまま残す）、revealState だけ解除する。
  */
 function restoreNonCollapsedSelectionAfterRevealClear(sel) {
   const range = sel.getRangeAt(0);
   const backward = sel.anchorNode !== range.startContainer || sel.anchorOffset !== range.startOffset;
   const startPoint = resolveSelectionPoint(range.startContainer, range.startOffset, false);
   const endPoint = resolveSelectionPoint(range.endContainer, range.endOffset, true);
+  const degenerate = !!startPoint && !!endPoint
+    && startPoint.line === endPoint.line && startPoint.col === endPoint.col;
+  const nextHr = degenerate ? hrRevealLines : hrLineSetFromPoints(startPoint, endPoint);
+  if (!revealState && sameHrRevealLines(nextHr, hrRevealLines)) return;
   revealState = null;
+  hrRevealLines = nextHr;
   renderAll();
+  if (degenerate) return; // DOM 選択には触れない（上記コメント参照）
   if (!startPoint || !endPoint) return;
   const startDom = domPointForRawPosition(startPoint.line, startPoint.col);
   const endDom = domPointForRawPosition(endPoint.line, endPoint.col);
@@ -2148,26 +2349,29 @@ document.addEventListener('selectionchange', () => {
   const inMdView = !!range && mdView.contains(range.commonAncestorContainer);
 
   if (inMdView && !sel.isCollapsed) {
-    // 選択が mdView 内で非 collapsed になった瞬間。revealState は必ず null にする（不変条件）が、
-    // 選択そのものは restoreNonCollapsedSelectionAfterRevealClear が raw 位置経由で張り直す
-    if (revealState) restoreNonCollapsedSelectionAfterRevealClear(sel);
+    // 選択が mdView 内で非 collapsed になった瞬間、または端点の hr 行が変わった瞬間。
+    // 何も変わっていなければ restoreNonCollapsedSelectionAfterRevealClear 自身が no-op になる
+    restoreNonCollapsedSelectionAfterRevealClear(sel);
     return;
   }
   if (!inMdView) {
     // 選択が mdView の外にある（mdView 外の選択変化で誤って reveal を組み立てないためのガードも兼ねる）
-    if (revealState) {
+    if (revealState || hrRevealLines.size > 0) {
       revealState = null;
+      hrRevealLines = new Set();
       renderAll();
     }
     return;
   }
 
   // 現在の DOM（＝現在の revealState）を基準にキャレットの raw 位置を求めてから、
-  // その raw 位置に対する新しい reveal 対象を決める
+  // その raw 位置に対する新しい reveal 対象・hr の生表示対象を決める
   const point = resolveSelectionPoint(range.startContainer, range.startOffset, false);
   const next = point ? computeRevealTarget(point.line, point.col) : null;
-  if (sameReveal(next, revealState)) return;
+  const nextHr = hrLineSetFromPoints(point);
+  if (sameReveal(next, revealState) && sameHrRevealLines(nextHr, hrRevealLines)) return;
   revealState = next;
+  hrRevealLines = nextHr;
   renderAll();
   // 再描画で失われたキャレットを、可視幅が変わった後の DOM でも同じソース位置へ復元する
   if (point) placeCaretAtRaw(point.line, point.col);
@@ -2178,8 +2382,9 @@ document.addEventListener('selectionchange', () => {
 // 差し替えてしまうため介入しない（compositionend が来るまで待つ）
 mdView.addEventListener('blur', () => {
   if (composing) return;
-  if (!revealState) return;
+  if (!revealState && hrRevealLines.size === 0) return;
   revealState = null;
+  hrRevealLines = new Set();
   renderAll();
 });
 
@@ -2876,6 +3081,14 @@ function isStandaloneImageLine(lineIdx) {
   return isStandalone && isImageOnlyLine(getLines()[lineIdx] ?? '');
 }
 
+/** 行 lineIdx が水平線（hr）の行か。computeRevealTarget と同じ判定を lines 配列だけから
+ * 求める（DOM 非依存）。フェンス内は水平線として描画されないため対象外。 */
+function isHrLine(lineIdx) {
+  const lines = getLines();
+  if (isFenceLine(lines, lineIdx)) return false;
+  return classifyLine(lines[lineIdx] ?? '').type === 'hr';
+}
+
 /** collapsed range のキャレット位置が、要素 el の折り返し込みの視覚行として先頭側
  * （edge === 'top'）/末尾側（edge === 'bottom'）に居るか。折り返しの無い行は常に true。
  * el 自身の getBoundingClientRect() は min-height 等の余白を含み実際のテキスト行と高さが
@@ -2928,6 +3141,43 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   e.stopImmediatePropagation();
   selectImage(target, 0, firstImageRelSrc(lines[target]));
+});
+
+// テキスト行から矢印キーで水平線（hr）の行へ「入る」変換。<hr> はキャレットが乗るまで
+// contenteditable の着地点を持たず、ネイティブな矢印移動は画像と同様にその行を素通りする。
+// 隣が hr 行のときだけ生表示（revealState）へ切り替えてキャレットを着地させる（画像と違い
+// 「選択状態」にはせず、reveal 中の他の装飾行と同じ実テキストの collapsed キャレットにする）。
+document.addEventListener('keydown', (e) => {
+  if (composing || selectedImage) return;
+  if (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const sel = window.getSelection();
+  if (!sel.rangeCount || !sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  if (!mdView.contains(range.commonAncestorContainer)) return;
+  const point = resolveSelectionPoint(range.startContainer, range.startOffset, false);
+  if (!point) return;
+  const lines = getLines();
+
+  let target = null;
+  let targetCol = 0; // 上/左からの進入は行頭、下/右からの進入は行末（下記で null に上書き）
+  if (e.key === 'ArrowDown') {
+    const block = findBlock(point.line);
+    if (block && isCaretAtVisualEdge(range, block.el, 'bottom')) target = point.line + 1;
+  } else if (e.key === 'ArrowUp') {
+    const block = findBlock(point.line);
+    if (block && isCaretAtVisualEdge(range, block.el, 'top')) { target = point.line - 1; targetCol = null; }
+  } else if (e.key === 'ArrowRight' && point.col >= (lines[point.line]?.length ?? 0)) {
+    target = point.line + 1;
+  } else if (e.key === 'ArrowLeft' && point.col <= lineStartColumn(point.line)) {
+    target = point.line - 1;
+    targetCol = null;
+  }
+  if (target == null || target < 0 || target >= lines.length || !isHrLine(target)) return;
+
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  placeCaretAtRaw(target, targetCol); // 生表示への切り替えは placeCaretAtRaw が行う
 });
 
 // チェックボックス行の内容先頭（マーカー直後）をまたぐ矢印移動。<input type="checkbox"> は

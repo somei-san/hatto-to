@@ -12,12 +12,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 前提条件: Rust 1.77+、Xcode Command Line Tools、Node.js（テスト用）
 
+`cargo` が PATH に無い環境（Homebrew の keg-only な rustup。恒久的な対処は DEVELOPMENT.md）では `env PATH="/opt/homebrew/opt/rustup/bin:$PATH" cargo ...` と前置する。素の `cargo` が `command not found` で落ちたまま、grep でフィルタした出力を「警告なし」と誤読しない。
+
 ## コミット前の検証
 
 - DEVELOPMENT.md「コミット前の検証」のコマンドを、変更した側（Rust / フロントエンド）に応じてすべて通す
 - フォーマッターは未導入。CSS と `tests/visual/*.ts` も lint 対象外
 
 `.claude/settings.json` に登録したフックが一部を自動で回す。`.rs` を編集すると `rust-check.sh` が fmt / clippy を実行し、失敗すれば内容を返す。`tests/visual/__screenshots__/` への書き込みは `guard-vrt-baseline.sh` が止める（ベースラインは再生成でしか正しく作れない）。`cargo test` と `npm test` と `npm run lint` は自分で流す。
+
+挙動を変える差分は、コミット確認の前に `code-reviewer` サブエージェントの 1 パスレビューを必ず通す（差分 + 変更意図 + 重点観点を渡し、指摘を反映してから検証をやり直す）。
+
+## ブランチ運用
+
+機能変更は main に直接コミットせず、ブランチを切って draft PR を出す（作成前に `~/.claude/rules/pr-rules.md` を読む）。タイポ修正や既存 PR への追従など機能変更に当たらないものは main へ直接コミットしてよい。
 
 ## リリース
 

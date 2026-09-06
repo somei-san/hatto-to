@@ -6,6 +6,8 @@
 - [Rust](https://rustup.rs/) (1.77+)
 - Xcode Command Line Tools (`xcode-select --install`)
 
+Homebrew の `rustup` formula で入れた場合は keg-only で `cargo` が PATH に載らない。`rustup-init` を実行して `~/.cargo/bin` を作るか、`/opt/homebrew/opt/rustup/bin` を PATH に加える。
+
 ```bash
 # 開発モードで起動
 cargo run --manifest-path src-tauri/Cargo.toml

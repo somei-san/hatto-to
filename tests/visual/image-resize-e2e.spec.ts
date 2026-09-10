@@ -310,7 +310,8 @@ test.describe("画像のリサイズハンドル", () => {
       document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: 0, clientY: 0 }));
     });
 
-    await page.waitForTimeout(100);
+    // dblclick ハンドラは dispatch 中に同期的に invoke を呼ぶ（呼ぶなら）ので、dispatch が
+    // 返った時点で呼び出し記録は確定している
     const calls = await page.evaluate(() =>
       (window as any).__captured_invokes.filter((c: any) => c.cmd === "open_image"),
     );

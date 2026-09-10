@@ -52,7 +52,8 @@ test.describe("checkbox toggle interaction", () => {
 
     const checkbox = page.locator('input[type="checkbox"]').first();
     await checkbox.click();
-    await page.waitForTimeout(400);
+    // change ハンドラは saveNow() を同期で呼ぶ（デバウンスしない）ので、click が返った時点で
+    // 記録は確定している
 
     const captured = await page.evaluate(() => (window as any).__capturedContent);
     expect(captured.length).toBeGreaterThan(0);
@@ -67,7 +68,8 @@ test.describe("checkbox toggle interaction", () => {
 
     const checkbox = page.locator('input[type="checkbox"]').first();
     await checkbox.click();
-    await page.waitForTimeout(400);
+    // change ハンドラは saveNow() を同期で呼ぶ（デバウンスしない）ので、click が返った時点で
+    // 記録は確定している
 
     const captured = await page.evaluate(() => (window as any).__capturedContent);
     expect(captured.length).toBeGreaterThan(0);

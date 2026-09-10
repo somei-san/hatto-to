@@ -1,4 +1,7 @@
-import { test, expect, getContent, placeCaret, selectMarkdownRange, commitHistory } from "./fixtures";
+import {
+  test, expect, getContent, placeCaret, selectMarkdownRange, commitHistory, waitForReveal,
+  settleSelection, pressAndSettle,
+} from "./fixtures";
 
 // 部分的に選択された装飾（太字/斜字/取り消し線/インラインコード/リンク）の削除・置換。
 // 選択が装飾セグメントを部分的にしか覆っていないとき、そのセグメントのマーカーは保存し
@@ -27,15 +30,14 @@ function dispatchPaste(page: import("@playwright/test").Page, plain: string) {
   }, plain);
 }
 
-/** mdView を blur して reveal を確実に解除する。splice 直後の selectionchange（キャレット
- * 復元）はブラウザが非同期に発火するため、blur を先に投げると「まだ revealState が更新されて
- * いない」タイミングに当たって blur の条件分岐（if (!revealState) return）が素通りし、直後に
- * 遅れて届いた selectionchange が改めて reveal を有効化してしまうことがある（1 行に複数の
- * 装飾がある行で発生しやすい）。先に selectionchange の決着を待ってから blur する。 */
+/** mdView を blur して reveal を解除する。splice 直後の selectionchange（キャレット復元）は
+ * ブラウザが非同期に発火するため、その決着前に blur すると blur の条件分岐
+ * （if (!revealState) return）が素通りし、遅れて届いた selectionchange が改めて reveal を
+ * 有効化してしまう。呼び出し側は直前の編集操作を pressAndSettle / settleSelection で決着させて
+ * おくこと。 */
 async function blurEditor(page: import("@playwright/test").Page) {
-  await page.waitForTimeout(100);
   await page.evaluate(() => (document.getElementById("markdown-view") as HTMLElement).blur());
-  await page.waitForTimeout(50);
+  await waitForReveal(page, null);
 }
 
 /** キャレットが装飾セグメントの手前（srcStart、reveal 前から到達できる安定した境界）にある
@@ -45,8 +47,7 @@ async function blurEditor(page: import("@playwright/test").Page) {
  * 一度 reveal を有効にしてから raw 1 文字ずつ進んで内容の直前まで辿り着く必要がある。 */
 async function stepRight(page: import("@playwright/test").Page, times: number) {
   for (let i = 0; i < times; i++) {
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(50);
+    await pressAndSettle(page, "ArrowRight");
   }
 }
 
@@ -56,7 +57,7 @@ test.describe("部分選択された太字の削除はマーカーを保存す�
 
     // 可視 "abc bold def" の "b"（4〜5文字目）だけを選択する
     await selectMarkdownRange(page, 0, 4, 0, 5);
-    await page.keyboard.press("Backspace");
+    await pressAndSettle(page, "Backspace");
 
     expect(await getContent(page)).toBe("abc **old** def");
     // 削除直後はキャレットが装飾の可視末尾に残り reveal が有効なままなので、装飾タグでの
@@ -69,7 +70,7 @@ test.describe("部分選択された太字の削除はマーカーを保存す�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 5, 0, 11); // 可視 "old de"
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc **b**f");
     await blurEditor(page);
@@ -80,7 +81,7 @@ test.describe("部分選択された太字の削除はマーカーを保存す�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 4, 0, 8); // 可視 "bold" 全体
-    await page.keyboard.press("Backspace");
+    await pressAndSettle(page, "Backspace");
 
     expect(await getContent(page)).toBe("abc  def");
     expect(await page.locator("#markdown-view strong").count()).toBe(0);
@@ -91,7 +92,7 @@ test.describe("部分選択された太字の削除はマーカーを保存す�
 
     // 可視 "bold and italic" のうち "ld and ita"（太字の途中〜斜字の途中）を選択
     await selectMarkdownRange(page, 0, 2, 0, 12);
-    await page.keyboard.press("Backspace");
+    await pressAndSettle(page, "Backspace");
 
     expect(await getContent(page)).toBe("**bo***lic*");
     await blurEditor(page);
@@ -103,7 +104,7 @@ test.describe("部分選択された太字の削除はマーカーを保存す�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 4, 0, 5);
-    await page.keyboard.press("Backspace");
+    await pressAndSettle(page, "Backspace");
     expect(await getContent(page)).toBe("abc **old** def");
 
     await commitHistory(page); // 保存を確定させ history へ積ませる
@@ -118,7 +119,7 @@ test.describe("部分選択への置換（タイピング・ペースト）も�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 4, 0, 5); // 可視 "b"
-    await page.keyboard.press("X");
+    await pressAndSettle(page, "X");
 
     expect(await getContent(page)).toBe("abc **Xold** def");
     await blurEditor(page);
@@ -129,7 +130,7 @@ test.describe("部分選択への置換（タイピング・ペースト）も�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 4, 0, 5); // 可視 "b"
-    await dispatchPaste(page, "XY");
+    await settleSelection(page, () => dispatchPaste(page, "XY"));
 
     expect(await getContent(page)).toBe("abc **XYold** def");
     await blurEditor(page);
@@ -140,7 +141,7 @@ test.describe("部分選択への置換（タイピング・ペースト）も�
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 5, 0, 11); // 可視 "old de"
-    await page.keyboard.press("X");
+    await pressAndSettle(page, "X");
 
     expect(await getContent(page)).toBe("abc **bX**f");
     await blurEditor(page);
@@ -153,7 +154,9 @@ test.describe("⌘X はコピーされる可視範囲と削除される可視範
     const page = await openNote({ content: "abc **bold** def" });
 
     await selectMarkdownRange(page, 0, 5, 0, 11); // 可視 "old de"
-    const { notCanceled, plain } = await dispatchCutWithClipboardData(page);
+    let result!: { notCanceled: boolean; plain: string };
+    await settleSelection(page, async () => { result = await dispatchCutWithClipboardData(page); });
+    const { notCanceled, plain } = result;
 
     expect(notCanceled).toBe(false); // preventDefault された
     expect(plain).toBe("old de");
@@ -176,7 +179,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc **x** def" });
     await placeCaret(page, 0, 4); // "abc |**x** def"（装飾の手前）
     await stepRight(page, 2); // 開くマーカー "**" を越えて内容 "x" の直前へ
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc  def");
     await blurEditor(page);
@@ -187,7 +190,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc *x* def" });
     await placeCaret(page, 0, 4); // "abc |*x* def"
     await stepRight(page, 1); // 開くマーカー "*" を越えて内容の直前へ
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc  def");
     await blurEditor(page);
@@ -198,7 +201,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc ~~x~~ def" });
     await placeCaret(page, 0, 4); // "abc |~~x~~ def"
     await stepRight(page, 2); // 開くマーカー "~~" を越えて内容の直前へ
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc  def");
     await blurEditor(page);
@@ -209,7 +212,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc `x` def" });
     await placeCaret(page, 0, 4); // "abc |`x` def"
     await stepRight(page, 1); // 開くマーカー "`" を越えて内容の直前へ
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc  def");
     await blurEditor(page);
@@ -220,7 +223,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc [x](https://example.com) def" });
     await placeCaret(page, 0, 4); // "abc |[x](https://example.com) def"
     await stepRight(page, 1); // "[" を越えてラベル "x" の直前へ
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
 
     expect(await getContent(page)).toBe("abc [](https://example.com) def");
     await blurEditor(page);
@@ -233,7 +236,7 @@ test.describe("可視文字が空になった装飾はマーカーごと正規�
     const page = await openNote({ content: "abc **x** def" });
     await placeCaret(page, 0, 4);
     await stepRight(page, 2);
-    await page.keyboard.press("Delete");
+    await pressAndSettle(page, "Delete");
     expect(await getContent(page)).toBe("abc  def");
 
     await commitHistory(page);

@@ -1,6 +1,6 @@
 import {
   test, expect, placeCaret, getContent, selectMarkdownRange, waitForReveal, getRevealState, getCaretPosition,
-  extendSelectionTo, commitHistory,
+  extendSelectionTo, commitHistory, pressAndSettle,
 } from "./fixtures";
 
 // インライン生表示（reveal）。キャレット（collapsed）が装飾（太字/斜字/取り消し線/インラインコード/
@@ -13,18 +13,16 @@ import {
 // window.placeCaretAtRaw で直接そこへテレポートすることはできない）。そのため、そうした位置は
 // reveal 済みの到達可能な境界（可視先頭・可視末尾）から矢印キーで 1 歩ずつ動いて到達する
 // （実際のユーザー操作と同じ経路）。矢印キー1回ごとに selectionchange の再描画が決着するまで
-// 少し待つ（stepRight/stepLeft）。reveal の切替はキー入力ごとのフル再描画なので、待たずに
+// 待つ（stepRight/stepLeft）。reveal の切替はキー入力ごとのフル再描画なので、待たずに
 // 連打すると再描画の途中に次のキーが割り込み得る（Playwright の高速な合成入力ならではの
 // 現象で、本テストの検証対象ではない）。
 
 /** ArrowRight/ArrowLeft を押し、selectionchange 駆動の再描画・reveal 再判定が決着するまで待つ。 */
-async function stepRight(page: import("@playwright/test").Page) {
-  await page.keyboard.press("ArrowRight");
-  await page.waitForTimeout(50);
+function stepRight(page: import("@playwright/test").Page) {
+  return pressAndSettle(page, "ArrowRight");
 }
-async function stepLeft(page: import("@playwright/test").Page) {
-  await page.keyboard.press("ArrowLeft");
-  await page.waitForTimeout(50);
+function stepLeft(page: import("@playwright/test").Page) {
+  return pressAndSettle(page, "ArrowLeft");
 }
 
 test.describe("キャレットが装飾の中・境界にあるとマーカーが見える", () => {
@@ -185,10 +183,8 @@ test.describe("選択の開始・拡張は reveal を解除しつつ選択その
     // stepRight と同様、selectionchange 駆動の再描画が決着するまで待ってから次のキーを送る
     // （待たずに連打すると再描画の途中に次のキーが割り込みうる。ファイル冒頭のコメント参照）
     await page.keyboard.down("Shift");
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(50);
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(50);
+    await stepRight(page);
+    await stepRight(page);
     await page.keyboard.up("Shift");
 
     expect(await getRevealState(page)).toBeNull(); // 非 collapsed の間 revealState は必ず null
@@ -246,10 +242,8 @@ test.describe("非 collapsed の選択中は revealState が必ず null（不変
     await waitForReveal(page, { line: 0, start: 4, end: 12 });
 
     await page.keyboard.down("Shift");
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(50);
-    await page.keyboard.press("ArrowRight");
-    await page.waitForTimeout(50);
+    await stepRight(page);
+    await stepRight(page);
     await page.keyboard.up("Shift");
     expect(await getRevealState(page)).toBeNull();
 

@@ -34,6 +34,9 @@ npm test
 # 単体テストだけ（ブラウザを起動しないので速い）
 npm run test:unit
 
+# 単体テストの行カバレッジ（単体テストが require する src/*.js の未実行行を洗い出す）
+npm run test:unit:coverage
+
 # 特定エンジンだけ（実機は WKWebView なので webkit 差分の切り分けに使う）
 npm run test:chromium
 npm run test:webkit

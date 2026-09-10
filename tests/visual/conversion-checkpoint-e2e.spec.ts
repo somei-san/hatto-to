@@ -15,7 +15,7 @@ function performRedo(page: import("@playwright/test").Page) {
 
 test.describe("変換確定チェックポイント", () => {
   test("見出し(# )の変換確定でチェックポイントが入り、undo 1回でリテラルに戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("# ", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("# ");
@@ -31,7 +31,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("箇条書き(- )の変換確定でチェックポイントが入り、undo 1回でリテラルに戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("- ", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("- ");
@@ -42,7 +42,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("順序リスト(1. )の変換確定でチェックポイントが入り、undo 1回でリテラルに戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("1. ", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("1. ");
@@ -53,7 +53,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("チェックボックス補完(- [] + スペース → - [ ] )の変換確定でチェックポイントが入り、undo 1回でスペース打鍵前に戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("- []", { delay: 30 });
     // トリガーはスペース。"]" を打った時点ではまだ変換されない
@@ -74,7 +74,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("太字(**bold**)の閉じ確定でチェックポイントが入り、undo 1回で **bold* に戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     // 打ち切り（デバウンス窓を跨がず連続入力）で "**bold**" まで一気に打つ
     await page.keyboard.type("**bold**", { delay: 30 });
@@ -86,7 +86,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("変換を含まない連続タイピングはデバウンス単位のまま（回帰）", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("hello world", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("hello world");
@@ -98,7 +98,7 @@ test.describe("変換確定チェックポイント", () => {
   });
 
   test("変換チェックポイントの undo を redo すると変換後の状態に戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("# ", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("# ");
@@ -119,7 +119,7 @@ test.describe("変換確定チェックポイント", () => {
 // 検証する。
 test.describe("フェンス内容行での誤発動ガード", () => {
   test("コードブロック内容行の `- ` はチェックポイントを作らず undo は1手で戻る", async ({ openNote }) => {
-    const page = await openNote({ content: "```\n\n```" });
+    const page = await openNote({ content: "```\n\n```" }, {}, { freezeTimers: true });
     await placeCaret(page, 1, 0);
     await page.keyboard.type("- ", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("```\n- \n```\n");
@@ -130,7 +130,7 @@ test.describe("フェンス内容行での誤発動ガード", () => {
   });
 
   test("コードブロック内容行の `` `a` `` はチェックポイントを作らず undo は1手で戻る", async ({ openNote }) => {
-    const page = await openNote({ content: "```\n\n```" });
+    const page = await openNote({ content: "```\n\n```" }, {}, { freezeTimers: true });
     await placeCaret(page, 1, 0);
     await page.keyboard.type("`a`", { delay: 30 });
     await expect.poll(() => getContent(page)).toBe("```\n`a`\n```\n");
@@ -147,7 +147,7 @@ test.describe("フェンス内容行での誤発動ガード", () => {
 // undo の粒度はデバウンス単位のまま保たれることを検証する（回帰）。
 test.describe("変換確定後の連続タイピングでチェックポイントが増えない", () => {
   test("**bold** 確定後の平文タイピングは1手にまとまる", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("**bold**", { delay: 30 });
     await commitHistory(page); // 変換確定の直後で一度確定させ、ここを手の境界にする
@@ -162,7 +162,7 @@ test.describe("変換確定後の連続タイピングでチェックポイン�
   });
 
   test("reveal 中（装飾内部にキャレット）での追記は1手にまとまる", async ({ openNote }) => {
-    const page = await openNote({ content: "**bold**" });
+    const page = await openNote({ content: "**bold**" }, {}, { freezeTimers: true });
     await placeCaret(page, 0, 4); // "**bo|ld**" — bold 装飾の内部
     await waitForReveal(page, { line: 0, start: 0, end: 8 });
 

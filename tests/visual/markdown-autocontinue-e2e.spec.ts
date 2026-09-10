@@ -54,7 +54,7 @@ test.describe("Markdown autocontinue E2E", () => {
 
   // ── Empty list item cancellation ────────────────────────
   test("empty bullet '- ' + Enter cancels the list", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("- item1");
     await page.keyboard.press("Enter");
@@ -180,7 +180,7 @@ test.describe("Markdown autocontinue E2E", () => {
 
   // ── undo で 1 手に戻る（保存を確定させた場合） ─────────
   test("Enter の自動継続は保存を確定させると undo 1 手で元の 1 行に戻る", async ({ openNote }) => {
-    const page = await openNote();
+    const page = await openNote({}, {}, { freezeTimers: true });
     await enterEdit(page);
     await page.keyboard.type("- item1");
     // タイピングの確定を待ってから Enter を押す。待たずに続けて押すと同じ commit に

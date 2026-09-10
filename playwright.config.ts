@@ -6,7 +6,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // GitHub の macOS ランナーは 3 コア。Playwright の既定（コア数の半分）だと 1 ワーカーになり
+  // 全 spec が直列で走るので、明示して 2 ワーカーにする
+  workers: process.env.CI ? 2 : undefined,
   reporter: "html",
   use: {
     baseURL: "http://localhost:3000",

@@ -502,7 +502,15 @@ export async function expectCaretAtVisiblePosition(
 
 type Fixtures = {
   notePage: Page;
-  openNote: (overrides?: Record<string, unknown>, settings?: Record<string, unknown>) => Promise<Page>;
+  /** note.html を独立したコンテキストで開く。freezeTimers を立てるとページ内の時計を止め、
+   * 保存デバウンス（300ms）がタイピングの途中で発火しなくなる。undo の手数を検証するテストは
+   * これを使う（遅いランナーではキー入力の間隔がデバウンス窓を越えて手が分かれてしまう）。
+   * 時計を止めると setTimeout 依存の処理（トースト・invokeDelays 等）も進まなくなる。 */
+  openNote: (
+    overrides?: Record<string, unknown>,
+    settings?: Record<string, unknown>,
+    options?: { freezeTimers?: boolean },
+  ) => Promise<Page>;
   settingsPage: Page;
   openSettings: (overrides?: Record<string, unknown>, autostart?: boolean) => Promise<Page>;
   trashPage: Page;
@@ -521,12 +529,18 @@ export const test = base.extend<Fixtures>({
   // note.html — custom note data, own browser context
   openNote: async ({ browser }, use) => {
     const pages: Page[] = [];
-    const open = async (overrides: Record<string, unknown> = {}, settings: Record<string, unknown> = {}) => {
+    const open = async (
+      overrides: Record<string, unknown> = {},
+      settings: Record<string, unknown> = {},
+      options: { freezeTimers?: boolean } = {},
+    ) => {
       const ctx = await browser.newContext({ viewport: { width: 300, height: 350 } });
       const page = await ctx.newPage();
+      if (options.freezeTimers) await page.clock.install();
       await injectNoteMock(page, overrides, settings);
       await page.goto("/note.html?id=test-note-id");
       await page.waitForLoadState("networkidle");
+      if (options.freezeTimers) await page.clock.pauseAt(Date.now() + 1000);
       pages.push(page);
       return page;
     };

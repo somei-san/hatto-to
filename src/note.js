@@ -2342,7 +2342,20 @@ function restoreNonCollapsedSelectionAfterRevealClear(sel) {
 // mdView への collapsed キャレット移動はすべてネイティブ（クリック・矢印キー等）に任せているため、
 // selectionchange だけが「キャレットが今どこにあるか」を検知できる唯一の経路になる。IME 変換中
 // （composing）は切り替えない。
+//
+// selectionSettleSeq はハンドラが走り終えた回数。ブラウザは selectionchange を非同期に配送するため、
+// テストはキー入力の後にこの値が進むのを待つことで「reveal の再判定・再描画・キャレット復元が
+// 済んだ」ことを実時間の待機なしに確定できる（window.getSelectionSettleSeq で公開）
+let selectionSettleSeq = 0;
 document.addEventListener('selectionchange', () => {
+  try {
+    handleSelectionChange();
+  } finally {
+    selectionSettleSeq++;
+  }
+});
+
+function handleSelectionChange() {
   if (composing) return;
   const sel = window.getSelection();
   const range = sel.rangeCount ? sel.getRangeAt(0) : null;
@@ -2375,7 +2388,7 @@ document.addEventListener('selectionchange', () => {
   renderAll();
   // 再描画で失われたキャレットを、可視幅が変わった後の DOM でも同じソース位置へ復元する
   if (point) placeCaretAtRaw(point.line, point.col);
-});
+}
 
 // mdView がフォーカスを失うとキャレットは表示されなくなるため、reveal も表示する意味が無い。
 // IME 変換中（composing）の blur は、renderAll() が変換中の WebKit ネイティブ書き込み DOM ごと
@@ -3483,6 +3496,7 @@ window.selectAllNote = selectAllNote;
 // インライン生表示（reveal）の現在の状態。selectionchange 駆動で非同期に確定するため、
 // テストは DOM の見た目だけでなくこの値で「reveal が確定したか」を待てる
 window.getRevealState = () => revealState;
+window.getSelectionSettleSeq = () => selectionSettleSeq;
 // 保留中の保存デバウンスをその場で確定させる。テストが undo の手数を検証する際、実時間で
 // デバウンス窓を待つ代わりにこれを呼べば決定的に commit を確定できる
 window.flushContent = flushContent;

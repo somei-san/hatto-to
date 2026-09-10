@@ -245,7 +245,8 @@ test.describe("選択中の画像を Backspace / Delete で削除する", () => 
     await page.keyboard.press("Backspace"); // in-flight 中の連打（キーリピート相当）
     await page.keyboard.press("Backspace");
 
-    await page.waitForTimeout(400); // 200ms の遅延 + マージン
+    // 遅延させた delete_image の応答が反映される（content が差し替わる）まで待ってから数える
+    await expect.poll(() => page.evaluate(() => (window as any).getRawContent())).toBe("text0");
 
     const calls = await page.evaluate(() =>
       (window as any).__captured_invokes.filter((c: any) => c.cmd === "delete_image"),

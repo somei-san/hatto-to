@@ -1,5 +1,6 @@
 import {
   test, expect, placeCaret, waitForReveal, getRevealState, caretRect, charRect, expectCaretAtVisiblePosition,
+  pressAndSettle,
 } from "./fixtures";
 
 // キャレットのジオメトリ（実際のピクセル位置）の回帰テスト。raw・DOM 上のキャレット位置が
@@ -107,9 +108,10 @@ test.describe("インライン生表示（reveal）の切替でキャレット�
     // reveal 状態を保っている歩どうしの間でだけ、小刻みな単調増加を検証する
     let prev = (await caretRect(page))!;
     let prevReveal = await getRevealState(page);
+    // 9 歩で raw col 1 → 10（文書末）にちょうど届く。文書末に着いた後の ArrowRight は
+    // 選択が動かず pressAndSettle が待ち続けるので、歩数は content の長さと連動させること
     for (let i = 0; i < 9; i++) {
-      await page.keyboard.press("ArrowRight");
-      await page.waitForTimeout(50); // selectionchange 駆動の reveal 再判定・再描画の決着待ち
+      await pressAndSettle(page, "ArrowRight"); // selectionchange 駆動の reveal 再判定・再描画の決着待ち
       const rect = (await caretRect(page))!;
       const reveal = await getRevealState(page);
       if (JSON.stringify(reveal) === JSON.stringify(prevReveal)) {

@@ -129,8 +129,8 @@ test.describe("画像のダブルクリック・右クリックメニュー", ()
     });
     await page.evaluate(dispatchOnImage, "dblclick");
 
-    // invoke されないことを確定させるため、明示的に待ってから0件であることを確認する
-    await page.waitForTimeout(100);
+    // dblclick ハンドラは dispatch 中に同期的に invoke を呼ぶ（呼ぶなら）ので、dispatch が
+    // 返った時点で呼び出し記録は確定している
     const calls = await page.evaluate(() =>
       (window as any).__captured_invokes.filter((c: any) => c.cmd === "open_image"),
     );

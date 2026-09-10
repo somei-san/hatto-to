@@ -97,6 +97,7 @@ export async function injectNoteMock(
       webviewWindow: {
         getCurrentWebviewWindow: () => ({
           startDragging: async () => {},
+          close: async () => { (window as any).__closeWasCalled = true; },
           outerPosition: async () => ({ x: 0, y: 0 }),
           outerSize: async () => ({ width: 300, height: 350 }),
           setAlwaysOnTop: async () => {},
@@ -273,6 +274,28 @@ export async function waitForReveal(page: Page, expected: RevealState) {
     },
     expected,
   );
+}
+
+/** action（キー入力・ペースト等）の後に selectionchange ハンドラが少なくとも 1 回走り終える
+ * まで待つ。ブラウザは selectionchange を非同期に配送するため、直後に DOM・reveal・キャレット
+ * 位置を読むと再判定・再描画・キャレット復元の前の状態を掴むことがある。実時間の待機
+ * （waitForTimeout）は CI の遅いランナーで足りなくなるので、ハンドラの完了回数で待つ。
+ * action が選択を一切動かさない場合はハンドラが走らず待ち続けるため、キャレットが動く
+ * 操作にだけ使う。ハンドラは IME 変換中（composing）は何もせずに抜けるので、変換中の
+ * 操作に使っても「済んだ」ことにはならない。 */
+export async function settleSelection(page: Page, action: () => Promise<unknown>) {
+  const seq = () => page.evaluate(() => (window as unknown as { getSelectionSettleSeq(): number }).getSelectionSettleSeq());
+  const before = await seq();
+  await action();
+  await page.waitForFunction(
+    (b) => (window as unknown as { getSelectionSettleSeq(): number }).getSelectionSettleSeq() > b,
+    before,
+  );
+}
+
+/** キーを 1 回押し、それに伴う selectionchange の処理が済むまで待つ（settleSelection 参照）。 */
+export function pressAndSettle(page: Page, key: string) {
+  return settleSelection(page, () => page.keyboard.press(key));
 }
 
 /** markdown-view の (行, 可視オフセット) の 2 点を DOM 選択（Range）として張る。note.js の
